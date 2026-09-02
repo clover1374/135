@@ -1070,7 +1070,7 @@ game_html = f"""
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="450"></canvas>
-    <div class="info">⌨️ [스페이스바] / [위쪽 화살표] / [클릭] : 점프 | [R] : 재시작</div>
+    <div class="info">⌨️ [스페이스바] / [위쪽 화살표] / [클릭 꾹 누르기] : 연속 점프 | [R] : 재시작</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -1085,28 +1085,23 @@ game_html = f"""
             trail: []
         }};
 
-        let jumpBuffered = false;
+        let isHoldingJump = false;
         let particles = [];
         const gravity = 0.85;
         const jumpForce = -12.8;
 
-        function jump() {{
-            if (!player.isDead && !player.isWin) {{
-                if (player.isGrounded) {{
-                    player.vy = jumpForce;
-                    player.isGrounded = false;
-                    createJumpParticles();
-                }} else {{
-                    jumpBuffered = true;
-                    setTimeout(() => {{ jumpBuffered = false; }}, 120);
-                }}
+        function tryJump() {{
+            if (!player.isDead && !player.isWin && player.isGrounded) {{
+                player.vy = jumpForce;
+                player.isGrounded = false;
+                createJumpParticles();
             }}
         }}
 
         function reset() {{
             player.x = 100; player.y = 320; player.vy = 0; player.rotation = 0;
             player.mode = "cube"; player.isGrounded = true; player.isDead = false; player.isWin = false;
-            player.trail = []; particles = [];
+            player.trail = []; particles = []; isHoldingJump = false;
         }}
 
         function createJumpParticles() {{
@@ -1119,11 +1114,31 @@ game_html = f"""
             }}
         }}
 
+        // 키 입력/꾹 누르기 처리 (Input Buffer 딜레이 제거)
         window.addEventListener("keydown", (e) => {{
-            if (e.code === "Space" || e.code === "ArrowUp") {{ jump(); e.preventDefault(); }}
+            if (e.code === "Space" || e.code === "ArrowUp") {{
+                if (!isHoldingJump) {{
+                    isHoldingJump = true;
+                    tryJump();
+                }}
+                e.preventDefault();
+            }}
             if (e.code === "KeyR") reset();
         }});
-        canvas.addEventListener("mousedown", () => jump());
+
+        window.addEventListener("keyup", (e) => {{
+            if (e.code === "Space" || e.code === "ArrowUp") {{
+                isHoldingJump = false;
+            }}
+        }});
+
+        canvas.addEventListener("mousedown", () => {{
+            isHoldingJump = true;
+            tryJump();
+        }});
+        window.addEventListener("mouseup", () => {{
+            isHoldingJump = false;
+        }});
 
         function update() {{
             if (player.isDead || player.isWin) return;
@@ -1132,7 +1147,7 @@ game_html = f"""
 
             if (player.mode === "cube") {{
                 player.vy += gravity;
-                if (!player.isGrounded) player.rotation += 8;
+                if (!player.isGrounded) player.rotation += 9;
                 else player.rotation = Math.round(player.rotation / 90) * 90;
             }}
 
@@ -1141,8 +1156,8 @@ game_html = f"""
             // 바닥 충돌
             if (player.y >= 340) {{
                 player.y = 340; player.vy = 0;
-                if (!player.isGrounded && jumpBuffered) jump();
-                else player.isGrounded = true;
+                player.isGrounded = true;
+                if (isHoldingJump) tryJump(); // 꾹 누르고 있을 때 즉시 재점프
             }}
 
             // 잔상 업데이트
@@ -1156,7 +1171,7 @@ game_html = f"""
                 if (p.life <= 0) particles.splice(i, 1);
             }}
 
-            // 관대한 판정 박스 (Hitbox Margin)
+            // 관대한 판정 박스
             const margin = 4;
             const pRect = {{
                 left: player.x + margin, right: player.x + player.size - margin,
@@ -1172,12 +1187,11 @@ game_html = f"""
                     if (obj.type === "spike") {{
                         player.isDead = true;
                     }} else if (obj.type === "block") {{
-                        // 상단 착지 판정
                         if (player.vy >= 0 && (player.y + player.size - player.vy) <= obj.y + 12) {{
                             player.y = obj.y - player.size;
                             player.vy = 0;
-                            if (jumpBuffered) jump();
-                            else player.isGrounded = true;
+                            player.isGrounded = true;
+                            if (isHoldingJump) tryJump(); // 블록 상단 착지 즉시 자동 점프
                         }} else {{
                             player.isDead = true;
                         }}
@@ -1189,6 +1203,43 @@ game_html = f"""
             }}
 
             if (player.x >= finishX) player.isWin = true;
+        }}
+
+        // 캐릭터 그리기 전용 함수 (디자인 강화)
+        function drawPlayerCube(x, y, size, rotation, alpha = 1.0) {{
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(x + size / 2, y + size / 2);
+            ctx.rotate((rotation * Math.PI) / 180);
+
+            let half = size / 2;
+
+            // 1. 외곽 베이스
+            ctx.fillStyle = "#00ffc8";
+            ctx.fillRect(-half, -half, size, size);
+
+            // 2. 내부 검은 사각형 (디자인 테두리)
+            ctx.fillStyle = "#0b0b12";
+            ctx.fillRect(-half + 3, -half + 3, size - 6, size - 6);
+
+            // 3. 내부 액센트 바
+            ctx.fillStyle = "#00ffc8";
+            ctx.fillRect(-half + 6, -half + 6, size - 12, size - 12);
+
+            // 4. 눈동자 (지오메트리 대시 스타일)
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(-half + 7, -half + 8, 5, 7);
+            ctx.fillRect(-half + 18, -half + 8, 5, 7);
+
+            ctx.fillStyle = "#000000";
+            ctx.fillRect(-half + 9, -half + 10, 3, 4);
+            ctx.fillRect(-half + 20, -half + 10, 3, 4);
+
+            // 5. 입 (자연스러운 캐릭터 라인)
+            ctx.fillStyle = "#000000";
+            ctx.fillRect(-half + 9, -half + 20, 12, 3);
+
+            ctx.restore();
         }}
 
         function draw() {{
@@ -1236,12 +1287,7 @@ game_html = f"""
 
             // 잔상 효과
             for (let t of player.trail) {{
-                ctx.save();
-                ctx.translate(t.x - camX + 15, t.y + 15);
-                ctx.rotate((t.rotation * Math.PI) / 180);
-                ctx.fillStyle = `rgba(0, 255, 200, ${{t.alpha * 0.3}})`;
-                ctx.fillRect(-15, -15, 30, 30);
-                ctx.restore();
+                drawPlayerCube(t.x - camX, t.y, player.size, t.rotation, t.alpha * 0.4);
                 t.alpha -= 0.08;
             }}
 
@@ -1253,16 +1299,9 @@ game_html = f"""
             }}
             ctx.globalAlpha = 1.0;
 
-            // 플레이어
+            // 플레이어 그리기
             if (!player.isDead) {{
-                ctx.save();
-                ctx.translate(player.x - camX + 15, player.y + 15);
-                ctx.rotate((player.rotation * Math.PI) / 180);
-                ctx.fillStyle = "#00ffc8";
-                ctx.fillRect(-15, -15, 30, 30);
-                ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
-                ctx.strokeRect(-10, -10, 20, 20);
-                ctx.restore();
+                drawPlayerCube(player.x - camX, player.y, player.size, player.rotation, 1.0);
             }}
 
             // UI
