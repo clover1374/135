@@ -1063,14 +1063,14 @@ game_html = f"""
 <html>
 <head>
     <style>
-        body {{ margin: 0; background-color: #12121c; text-align: center; color: white; font-family: Arial, sans-serif; }}
-        canvas {{ border: 2px solid #00ffc8; background-color: #12121c; display: block; margin: 10px auto; }}
-        .info {{ font-size: 14px; color: #aaa; margin-top: 5px; }}
+        body {{ margin: 0; background-color: #0b0b12; text-align: center; color: white; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }}
+        canvas {{ border: 2px solid #00ffc8; box-shadow: 0 0 20px rgba(0, 255, 200, 0.3); border-radius: 8px; display: block; margin: 10px auto; background: linear-gradient(to bottom, #0d0d1a, #1a1a3a); }}
+        .info {{ font-size: 13px; color: #8a8ab0; margin-top: 6px; font-weight: bold; }}
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="450"></canvas>
-    <div class="info">조작법: 스페이스바 / 위쪽 화살표 (점프), R 키 (재시작)</div>
+    <div class="info">⌨️ [스페이스바] / [위쪽 화살표] / [클릭] : 점프 | [R] : 재시작</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -1079,166 +1079,213 @@ game_html = f"""
         const mapObjects = {map_json};
         const finishX = 52100;
 
-        let player = {{ x: 100, y: 340, size: 30, vy: 0, mode: "cube", isGrounded: true, isDead: false, isWin: false }};
-        const gravity = 0.8;
-        const jumpForce = -12.5;
+        let player = {{
+            x: 100, y: 320, size: 30, vy: 0, rotation: 0,
+            mode: "cube", isGrounded: true, isDead: false, isWin: false,
+            trail: []
+        }};
+
+        let jumpBuffered = false;
+        let particles = [];
+        const gravity = 0.85;
+        const jumpForce = -12.8;
 
         function jump() {{
-            if (player.isGrounded && !player.isDead && !player.isWin) {{
-                player.vy = jumpForce;
-                player.isGrounded = false;
+            if (!player.isDead && !player.isWin) {{
+                if (player.isGrounded) {{
+                    player.vy = jumpForce;
+                    player.isGrounded = false;
+                    createJumpParticles();
+                }} else {{
+                    jumpBuffered = true;
+                    setTimeout(() => {{ jumpBuffered = false; }}, 120);
+                }}
             }}
         }}
 
         function reset() {{
-            player.x = 100;
-            player.y = 340;
-            player.vy = 0;
-            player.mode = "cube";
-            player.isGrounded = true;
-            player.isDead = false;
-            player.isWin = false;
+            player.x = 100; player.y = 320; player.vy = 0; player.rotation = 0;
+            player.mode = "cube"; player.isGrounded = true; player.isDead = false; player.isWin = false;
+            player.trail = []; particles = [];
+        }}
+
+        function createJumpParticles() {{
+            for (let i = 0; i < 8; i++) {{
+                particles.push({{
+                    x: player.x + 15, y: player.y + 30,
+                    vx: (Math.random() - 0.5) * 4, vy: Math.random() * 3 + 1,
+                    life: 1, color: "#00ffc8"
+                }});
+            }}
         }}
 
         window.addEventListener("keydown", (e) => {{
-            if (e.code === "Space" || e.code === "ArrowUp") {{
-                jump();
-                e.preventDefault();
-            }}
-            if (e.code === "KeyR") {{
-                reset();
-            }}
+            if (e.code === "Space" || e.code === "ArrowUp") {{ jump(); e.preventDefault(); }}
+            if (e.code === "KeyR") reset();
         }});
+        canvas.addEventListener("mousedown", () => jump());
 
         function update() {{
             if (player.isDead || player.isWin) return;
 
-            player.x += 6.5;
+            player.x += 6.2;
 
             if (player.mode === "cube") {{
                 player.vy += gravity;
-            }} else if (player.mode === "ship") {{
-                player.vy += gravity * 0.5;
+                if (!player.isGrounded) player.rotation += 8;
+                else player.rotation = Math.round(player.rotation / 90) * 90;
             }}
 
             player.y += player.vy;
 
+            // 바닥 충돌
             if (player.y >= 340) {{
-                player.y = 340;
-                player.vy = 0;
-                player.isGrounded = true;
+                player.y = 340; player.vy = 0;
+                if (!player.isGrounded && jumpBuffered) jump();
+                else player.isGrounded = true;
             }}
+
+            // 잔상 업데이트
+            player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, alpha: 0.5 }});
+            if (player.trail.length > 5) player.trail.shift();
+
+            // 파티클 업데이트
+            for (let i = particles.length - 1; i >= 0; i--) {{
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+                if (p.life <= 0) particles.splice(i, 1);
+            }}
+
+            // 관대한 판정 박스 (Hitbox Margin)
+            const margin = 4;
+            const pRect = {{
+                left: player.x + margin, right: player.x + player.size - margin,
+                top: player.y + margin, bottom: player.y + player.size - margin
+            }};
 
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
-                if (player.x < obj.x + obj.w && player.x + player.size > obj.x &&
-                    player.y < obj.y + obj.h && player.y + player.size > obj.y) {{
-                    
+                if (pRect.right > obj.x && pRect.left < obj.x + obj.w &&
+                    pRect.bottom > obj.y && pRect.top < obj.y + obj.h) {{
+
                     if (obj.type === "spike") {{
                         player.isDead = true;
                     }} else if (obj.type === "block") {{
-                        if (player.vy >= 0 && player.y + player.size - player.vy <= obj.y + 10) {{
+                        // 상단 착지 판정
+                        if (player.vy >= 0 && (player.y + player.size - player.vy) <= obj.y + 12) {{
                             player.y = obj.y - player.size;
                             player.vy = 0;
-                            player.isGrounded = true;
+                            if (jumpBuffered) jump();
+                            else player.isGrounded = true;
                         }} else {{
                             player.isDead = true;
                         }}
                     }} else if (obj.type === "pad_yellow") {{
-                        player.vy = -15;
-                        player.isGrounded = false;
-                    }} else if (obj.type === "portal_ship") {{
-                        player.mode = "ship";
-                    }} else if (obj.type === "portal_cube") {{
-                        player.mode = "cube";
+                        player.vy = -16; player.isGrounded = false;
+                        createJumpParticles();
                     }}
                 }}
             }}
 
-            if (player.x >= finishX) {{
-                player.isWin = true;
-            }}
+            if (player.x >= finishX) player.isWin = true;
         }}
 
         function draw() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const camX = player.x - 150;
 
-            ctx.fillStyle = "#0a0a12";
-            ctx.fillRect(0, 370, canvas.width, 80);
-            ctx.strokeStyle = "#00ffc8";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, 370);
-            ctx.lineTo(canvas.width, 370);
-            ctx.stroke();
+            // 격자 배경
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+            ctx.lineWidth = 1;
+            for (let x = -(camX % 40); x < canvas.width; x += 40) {{
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }}
 
+            // 바닥
+            ctx.fillStyle = "#07070f";
+            ctx.fillRect(0, 370, canvas.width, 80);
+            ctx.strokeStyle = "#00ffc8"; ctx.lineWidth = 3;
+            ctx.shadowColor = "#00ffc8"; ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // 오브젝트 렌더링
             for (let obj of mapObjects) {{
-                let screenX = obj.x - camX;
-                if (screenX >= -50 && screenX <= canvas.width + 50) {{
+                let sx = obj.x - camX;
+                if (sx >= -60 && sx <= canvas.width + 60) {{
                     if (obj.type === "block") {{
-                        ctx.fillStyle = "#282846";
-                        ctx.fillRect(screenX, obj.y, obj.w, obj.h);
-                        ctx.strokeStyle = "#646496";
-                        ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
+                        ctx.fillStyle = "#1e1e38";
+                        ctx.fillRect(sx, obj.y, obj.w, obj.h);
+                        ctx.strokeStyle = "#00d2ff"; ctx.lineWidth = 2;
+                        ctx.strokeRect(sx, obj.y, obj.w, obj.h);
                     }} else if (obj.type === "spike") {{
-                        ctx.fillStyle = "#ff3232";
+                        ctx.fillStyle = "#ff2a6d";
                         ctx.beginPath();
-                        ctx.moveTo(screenX, obj.y + obj.h);
-                        ctx.lineTo(screenX + obj.w / 2, obj.y);
-                        ctx.lineTo(screenX + obj.w, obj.y + obj.h);
-                        ctx.closePath();
-                        ctx.fill();
+                        ctx.moveTo(sx, obj.y + obj.h);
+                        ctx.lineTo(sx + obj.w / 2, obj.y);
+                        ctx.lineTo(sx + obj.w, obj.y + obj.h);
+                        ctx.closePath(); ctx.fill();
+                        ctx.strokeStyle = "#ff7597"; ctx.lineWidth = 1.5; ctx.stroke();
                     }} else if (obj.type === "pad_yellow") {{
-                        ctx.fillStyle = "#ffff00";
-                        ctx.fillRect(screenX, obj.y, obj.w, obj.h);
-                    }} else if (obj.type === "ring_yellow") {{
-                        ctx.strokeStyle = "#ffe600";
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
-                    }} else if (obj.type === "portal_ship") {{
-                        ctx.strokeStyle = "#ff7800";
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
-                    }} else if (obj.type === "portal_cube") {{
-                        ctx.strokeStyle = "#00c8ff";
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
+                        ctx.fillStyle = "#ffe600";
+                        ctx.fillRect(sx, obj.y + obj.h - 8, obj.w, 8);
                     }}
                 }}
             }}
 
-            let playerScreenX = player.x - camX;
-            ctx.fillStyle = player.mode === "cube" ? "#00ff80" : "#ff8000";
-            ctx.fillRect(playerScreenX, player.y, player.size, player.size);
+            // 잔상 효과
+            for (let t of player.trail) {{
+                ctx.save();
+                ctx.translate(t.x - camX + 15, t.y + 15);
+                ctx.rotate((t.rotation * Math.PI) / 180);
+                ctx.fillStyle = `rgba(0, 255, 200, ${{t.alpha * 0.3}})`;
+                ctx.fillRect(-15, -15, 30, 30);
+                ctx.restore();
+                t.alpha -= 0.08;
+            }}
 
+            // 파티클
+            for (let p of particles) {{
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fillRect(p.x - camX, p.y, 4, 4);
+            }}
+            ctx.globalAlpha = 1.0;
+
+            // 플레이어
+            if (!player.isDead) {{
+                ctx.save();
+                ctx.translate(player.x - camX + 15, player.y + 15);
+                ctx.rotate((player.rotation * Math.PI) / 180);
+                ctx.fillStyle = "#00ffc8";
+                ctx.fillRect(-15, -15, 30, 30);
+                ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
+                ctx.strokeRect(-10, -10, 20, 20);
+                ctx.restore();
+            }}
+
+            // UI
             let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
-            ctx.fillStyle = "white";
-            ctx.font = "bold 16px Arial";
-            ctx.fillText("Progress: " + progress + "%", 20, 30);
+            ctx.fillStyle = "#ffffff"; ctx.font = "bold 18px 'Segoe UI'";
+            ctx.fillText(progress + "%", 20, 35);
 
             if (player.isDead) {{
-                ctx.fillStyle = "#ff5050";
-                ctx.font = "bold 24px Arial";
-                ctx.fillText("GAME OVER! Press 'R' to Restart", 230, 200);
+                ctx.fillStyle = "#ff2a6d"; ctx.font = "bold 28px 'Segoe UI'"; ctx.textAlign = "center";
+                ctx.fillText("💥 GAME OVER", canvas.width / 2, 200);
+                ctx.font = "16px 'Segoe UI'"; ctx.fillStyle = "#aaa";
+                ctx.fillText("Press 'R' or Space to Retry", canvas.width / 2, 235);
             }} else if (player.isWin) {{
-                ctx.fillStyle = "#50ff78";
-                ctx.font = "bold 24px Arial";
-                ctx.fillText("STAGE CLEAR!! Press 'R' to Replay", 230, 200);
+                ctx.fillStyle = "#00ffc8"; ctx.font = "bold 28px 'Segoe UI'"; ctx.textAlign = "center";
+                ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 200);
             }}
         }}
 
-        function gameLoop() {{
-            update();
-            draw();
-            requestAnimationFrame(gameLoop);
-        }}
-
+        function gameLoop() {{ update(); draw(); requestAnimationFrame(gameLoop); }}
         gameLoop();
     </script>
 </body>
 </html>
 """
 
-components.html(game_html, height=520)
+components.html(game_html, height=530)
