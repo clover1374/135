@@ -948,7 +948,7 @@ MAP_OBJECTS = [
     {"type": "portal_cube", "x": 46300, "y": 150, "w": 45, "h": 220},
     {"type": "block", "x": 46450, "y": 310, "w": 30, "h": 60},
     {"type": "block", "x": 46480, "y": 310, "w": 30, "h": 60},
-    {"type": "block", "x": 46510, "y": 310, "w": 30, "h": 60}
+    {"type": "block", "x": 46510, "y": 310, "w": 30, "h": 60},
 # === [91/100] High-Altitude Spike Vaults ===
     {"type": "block", "x": 46650, "y": 280, "w": 30, "h": 90},
     {"type": "block", "x": 46680, "y": 280, "w": 30, "h": 90},
