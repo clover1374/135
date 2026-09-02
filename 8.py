@@ -797,7 +797,7 @@ MAP_OBJECTS = [
     {"type": "ring_yellow", "x": 37420, "y": 220, "w": 30, "h": 30},
     {"type": "block", "x": 37650, "y": 280, "w": 30, "h": 90},
     {"type": "block", "x": 37680, "y": 280, "w": 30, "h": 90},
-    {"type": "block", "x": 37710, "y": 280, "w": 30, "h": 90}
+    {"type": "block", "x": 37710, "y": 280, "w": 30, "h": 90},
 # === [72/100] High Sky Platform & Drop ===
     {"type": "pad_yellow", "x": 37850, "y": 250, "w": 30, "h": 10},
     {"type": "block", "x": 38000, "y": 140, "w": 30, "h": 230},
