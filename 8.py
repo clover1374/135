@@ -872,7 +872,7 @@ MAP_OBJECTS = [
     {"type": "spike", "x": 41880, "y": 250, "w": 30, "h": 30},
     {"type": "spike", "x": 41910, "y": 250, "w": 30, "h": 30},
     {"type": "block", "x": 42100, "y": 310, "w": 30, "h": 60},
-    {"type": "block", "x": 42130, "y": 310, "w": 30, "h": 60}
+    {"type": "block", "x": 42130, "y": 310, "w": 30, "h": 60},
 # === [81/100] Extended Ship Tunnel VI - Extreme Corridor ===
     {"type": "portal_ship", "x": 42300, "y": 150, "w": 45, "h": 220},
     {"type": "block", "x": 42500, "y": 0, "w": 30, "h": 150},
