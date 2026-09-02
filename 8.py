@@ -1064,6 +1064,13 @@ if len(MAP_OBJECTS) >= 9:
         spikes[7]["x"] = spikes[6]["x"] + 180
         spikes[8]["x"] = spikes[7]["x"] + 180
 
+# 맵 데이터에 비행기 변신 포탈 및 다시 큐브로 돌아오는 포탈 자동 삽입
+has_portal = any(obj.get("type") in ["portal_ship", "portal_cube"] for obj in MAP_OBJECTS)
+if not has_portal:
+    # 2000px 지점에 비행기 포탈, 6000px 지점에 큐브 복귀 포탈 배치
+    MAP_OBJECTS.append({"type": "portal_ship", "x": 2000, "y": 260, "w": 40, "h": 80})
+    MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 260, "w": 40, "h": 80})
+
 map_json = json.dumps(MAP_OBJECTS)
 
 game_html = f"""
@@ -1078,7 +1085,7 @@ game_html = f"""
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="450"></canvas>
-    <div class="info">⌨️ [스페이스바] / [위쪽 화살표] / [클릭 꾹 누르기] : 점프 | [R] : 재시작</div>
+    <div class="info">⌨️ [스페이스바] / [위쪽 화살표] / [클릭 꾹 누르기] : 큐브(점프) | 비행기(상승) | [R] : 재시작</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -1088,37 +1095,37 @@ game_html = f"""
         const finishX = 52100;
 
         let player = {{
-            x: 100, y: 340, targetY: 340, size: 30, vy: 0, rotation: 0,
+            x: 100, y: 340, size: 30, vy: 0, rotation: 0,
             mode: "cube", isGrounded: true, isDead: false, isWin: false,
             trail: []
         }};
 
         let isHoldingJump = false;
         let particles = [];
-        const gravity = 0.82;
-        const jumpForce = -13.2;
+        const gravity = 0.8;
+        const jumpForce = -13.0;
         const speedX = 6.0;
 
         function tryJump() {{
-            if (!player.isDead && !player.isWin && player.isGrounded) {{
+            if (!player.isDead && !player.isWin && player.mode === "cube" && player.isGrounded) {{
                 player.vy = jumpForce;
                 player.isGrounded = false;
-                createJumpParticles();
+                createParticles(player.x + 15, player.y + 30, "#00ffc8");
             }}
         }}
 
         function reset() {{
-            player.x = 100; player.y = 340; player.targetY = 340; player.vy = 0; player.rotation = 0;
+            player.x = 100; player.y = 340; player.vy = 0; player.rotation = 0;
             player.mode = "cube"; player.isGrounded = true; player.isDead = false; player.isWin = false;
             player.trail = []; particles = []; isHoldingJump = false;
         }}
 
-        function createJumpParticles() {{
-            for (let i = 0; i < 8; i++) {{
+        function createParticles(x, y, color) {{
+            for (let i = 0; i < 6; i++) {{
                 particles.push({{
-                    x: player.x + 15, y: player.y + 30,
+                    x: x, y: y,
                     vx: (Math.random() - 0.5) * 4, vy: Math.random() * 3 + 1,
-                    life: 1, color: "#00ffc8"
+                    life: 1, color: color
                 }});
             }}
         }}
@@ -1151,43 +1158,52 @@ game_html = f"""
         function update() {{
             if (player.isDead || player.isWin) return;
 
-            let prevX = player.x;
-            let prevY = player.y;
-
             player.x += speedX;
 
+            // 모드별 물리 계산
             if (player.mode === "cube") {{
                 player.vy += gravity;
-                if (!player.isGrounded) player.rotation += 9;
+                if (!player.isGrounded) player.rotation += 8;
                 else player.rotation = Math.round(player.rotation / 90) * 90;
+            }} else if (player.mode === "ship") {{
+                if (isHoldingJump) player.vy -= 0.65; // 부드러운 상승
+                else player.vy += 0.55; // 부드러운 하강
+
+                player.vy = Math.max(-8, Math.min(8, player.vy));
+                player.rotation = player.vy * 4; // 비행기 기울기
             }}
 
             player.y += player.vy;
             player.isGrounded = false;
 
-            // 기본 바닥 충돌
+            // 기본 바닥/천장 한계선
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
                 player.isGrounded = true;
             }}
+            if (player.y <= 0) {{
+                player.y = 0;
+                player.vy = 0;
+            }}
 
-            // 잔상 및 파티클
-            player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, alpha: 0.5 }});
+            // 잔상 효과
+            player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, alpha: 0.5, mode: player.mode }});
             if (player.trail.length > 5) player.trail.shift();
 
+            // 파티클
             for (let i = particles.length - 1; i >= 0; i--) {{
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy; p.life -= 0.05;
                 if (p.life <= 0) particles.splice(i, 1);
             }}
 
-            // 오브젝트 충돌 및 착지 위치 자연스럽게 보정
+            // 충돌 판정 개선 (순간이동 없는 연속 바운딩 박스)
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
                 if (obj.type === "spike") {{
-                    const margin = 6;
+                    const margin = 7;
                     if (player.x + player.size - margin > obj.x + margin &&
                         player.x + margin < obj.x + obj.w - margin &&
                         player.y + player.size - margin > obj.y + margin &&
@@ -1196,41 +1212,51 @@ game_html = f"""
                     }}
                 }} 
                 else if (obj.type === "block") {{
-                    if (player.x + player.size > obj.x + 2 && player.x < obj.x + obj.w - 2) {{
-                        // 블록 위 착지 (순간이동 없이 부드럽게 안착)
-                        let landingY = obj.y - player.size;
-                        if (prevY + player.size <= obj.y + 14 && player.vy >= 0) {{
-                            player.y = landingY;
+                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
+                        let nextBottom = player.y + player.size;
+                        let prevBottom = nextBottom - player.vy;
+
+                        // 부드러운 상단 착지 판정
+                        if (prevBottom <= obj.y + 10 && nextBottom >= obj.y) {{
+                            player.y = obj.y - player.size;
                             player.vy = 0;
                             player.isGrounded = true;
                         }} 
-                        // 블록 측면 충돌
-                        else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 4) {{
-                            if (prevX + player.size <= obj.x + 10) {{
-                                player.x = obj.x - player.size;
-                                player.isDead = true;
-                            }}
+                        // 측면 충돌 (사망)
+                        else if (player.y + player.size > obj.y + 6 && player.y < obj.y + obj.h - 6) {{
+                            player.isDead = true;
                         }}
                     }}
                 }} 
-                else if (obj.type === "pad_yellow") {{
+                else if (obj.type === "portal_ship") {{
                     if (player.x + player.size > obj.x && player.x < obj.x + obj.w &&
-                        player.y + player.size >= obj.y && player.y <= obj.y + obj.h) {{
-                        player.vy = -16.5;
-                        player.isGrounded = false;
-                        createJumpParticles();
+                        player.y + player.size > obj.y && player.y < obj.y + obj.h) {{
+                        if (player.mode !== "ship") {{
+                            player.mode = "ship";
+                            createParticles(player.x, player.y, "#ff00d2");
+                        }}
+                    }}
+                }} 
+                else if (obj.type === "portal_cube") {{
+                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w &&
+                        player.y + player.size > obj.y && player.y < obj.y + obj.h) {{
+                        if (player.mode !== "cube") {{
+                            player.mode = "cube";
+                            createParticles(player.x, player.y, "#00ffc8");
+                        }}
                     }}
                 }}
             }}
 
-            if (player.isGrounded && isHoldingJump) {{
+            // 연속 자동 점프
+            if (player.mode === "cube" && player.isGrounded && isHoldingJump) {{
                 tryJump();
             }}
 
             if (player.x >= finishX) player.isWin = true;
         }}
 
-        function drawPlayerCube(x, y, size, rotation, alpha = 1.0) {{
+        function drawPlayer(x, y, size, rotation, mode, alpha = 1.0) {{
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.translate(x + size / 2, y + size / 2);
@@ -1238,25 +1264,21 @@ game_html = f"""
 
             let half = size / 2;
 
-            ctx.fillStyle = "#00ffc8";
-            ctx.fillRect(-half, -half, size, size);
-
-            ctx.fillStyle = "#0b0b12";
-            ctx.fillRect(-half + 3, -half + 3, size - 6, size - 6);
-
-            ctx.fillStyle = "#00ffc8";
-            ctx.fillRect(-half + 6, -half + 6, size - 12, size - 12);
-
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(-half + 7, -half + 8, 5, 7);
-            ctx.fillRect(-half + 18, -half + 8, 5, 7);
-
-            ctx.fillStyle = "#000000";
-            ctx.fillRect(-half + 9, -half + 10, 3, 4);
-            ctx.fillRect(-half + 20, -half + 10, 3, 4);
-
-            ctx.fillStyle = "#000000";
-            ctx.fillRect(-half + 9, -half + 20, 12, 3);
+            if (mode === "cube") {{
+                ctx.fillStyle = "#00ffc8"; ctx.fillRect(-half, -half, size, size);
+                ctx.fillStyle = "#0b0b12"; ctx.fillRect(-half + 3, -half + 3, size - 6, size - 6);
+                ctx.fillStyle = "#00ffc8"; ctx.fillRect(-half + 6, -half + 6, size - 12, size - 12);
+                ctx.fillStyle = "#ffffff"; ctx.fillRect(-half + 7, -half + 8, 5, 7); ctx.fillRect(-half + 18, -half + 8, 5, 7);
+                ctx.fillStyle = "#000000"; ctx.fillRect(-half + 9, -half + 10, 3, 4); ctx.fillRect(-half + 20, -half + 10, 3, 4);
+                ctx.fillRect(-half + 9, -half + 20, 12, 3);
+            }} else if (mode === "ship") {{
+                // 비행기 그래픽
+                ctx.fillStyle = "#ff00d2";
+                ctx.beginPath();
+                ctx.moveTo(-half - 5, 0); ctx.lineTo(half + 5, -half + 5); ctx.lineTo(half + 5, half - 5);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = "#ffffff"; ctx.fillRect(-3, -5, 10, 10);
+            }}
 
             ctx.restore();
         }}
@@ -1285,42 +1307,38 @@ game_html = f"""
                 let sx = obj.x - camX;
                 if (sx >= -60 && sx <= canvas.width + 60) {{
                     if (obj.type === "block") {{
-                        ctx.fillStyle = "#1e1e38";
-                        ctx.fillRect(sx, obj.y, obj.w, obj.h);
-                        ctx.strokeStyle = "#00d2ff"; ctx.lineWidth = 2;
-                        ctx.strokeRect(sx, obj.y, obj.w, obj.h);
+                        ctx.fillStyle = "#1e1e38"; ctx.fillRect(sx, obj.y, obj.w, obj.h);
+                        ctx.strokeStyle = "#00d2ff"; ctx.lineWidth = 2; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
                     }} else if (obj.type === "spike") {{
-                        ctx.fillStyle = "#ff2a6d";
-                        ctx.beginPath();
-                        ctx.moveTo(sx, obj.y + obj.h);
-                        ctx.lineTo(sx + obj.w / 2, obj.y);
-                        ctx.lineTo(sx + obj.w, obj.y + obj.h);
+                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath();
+                        ctx.moveTo(sx, obj.y + obj.h); ctx.lineTo(sx + obj.w / 2, obj.y); ctx.lineTo(sx + obj.w, obj.y + obj.h);
                         ctx.closePath(); ctx.fill();
                         ctx.strokeStyle = "#ff7597"; ctx.lineWidth = 1.5; ctx.stroke();
-                    }} else if (obj.type === "pad_yellow") {{
-                        ctx.fillStyle = "#ffe600";
-                        ctx.fillRect(sx, obj.y + obj.h - 8, obj.w, 8);
+                    }} else if (obj.type === "portal_ship") {{
+                        ctx.fillStyle = "rgba(255, 0, 210, 0.3)"; ctx.fillRect(sx, obj.y, obj.w, obj.h);
+                        ctx.strokeStyle = "#ff00d2"; ctx.lineWidth = 3; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
+                    }} else if (obj.type === "portal_cube") {{
+                        ctx.fillStyle = "rgba(0, 255, 200, 0.3)"; ctx.fillRect(sx, obj.y, obj.w, obj.h);
+                        ctx.strokeStyle = "#00ffc8"; ctx.lineWidth = 3; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
                     }}
                 }}
             }}
 
             // 잔상 효과
             for (let t of player.trail) {{
-                drawPlayerCube(t.x - camX, t.y, player.size, t.rotation, t.alpha * 0.4);
+                drawPlayer(t.x - camX, t.y, player.size, t.rotation, t.mode, t.alpha * 0.4);
                 t.alpha -= 0.08;
             }}
 
             // 파티클
             for (let p of particles) {{
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.life;
-                ctx.fillRect(p.x - camX, p.y, 4, 4);
+                ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x - camX, p.y, 4, 4);
             }}
             ctx.globalAlpha = 1.0;
 
             // 플레이어 그리기
             if (!player.isDead) {{
-                drawPlayerCube(player.x - camX, player.y, player.size, player.rotation, 1.0);
+                drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, 1.0);
             }}
 
             // UI
