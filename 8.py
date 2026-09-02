@@ -1056,6 +1056,14 @@ MAP_OBJECTS = [
     {"type": "block", "x": 52140, "y": 280, "w": 30, "h": 90},
     {"type": "block", "x": 52170, "y": 280, "w": 30, "h": 90}
 ]
+# 8번째, 9번째 가시/오브젝트 위치 보정 (필요시 데이터 배열 수정)
+if len(MAP_OBJECTS) >= 9:
+    spikes = [obj for obj in MAP_OBJECTS if obj.get("type") == "spike"]
+    if len(spikes) >= 9:
+        # 8번째와 9번째 가시 간격을 점프 가능한 자연스러운 동선으로 보정
+        spikes[7]["x"] = spikes[6]["x"] + 180
+        spikes[8]["x"] = spikes[7]["x"] + 180
+
 map_json = json.dumps(MAP_OBJECTS)
 
 game_html = f"""
@@ -1080,7 +1088,7 @@ game_html = f"""
         const finishX = 52100;
 
         let player = {{
-            x: 100, y: 340, size: 30, vy: 0, rotation: 0,
+            x: 100, y: 340, targetY: 340, size: 30, vy: 0, rotation: 0,
             mode: "cube", isGrounded: true, isDead: false, isWin: false,
             trail: []
         }};
@@ -1100,7 +1108,7 @@ game_html = f"""
         }}
 
         function reset() {{
-            player.x = 100; player.y = 340; player.vy = 0; player.rotation = 0;
+            player.x = 100; player.y = 340; player.targetY = 340; player.vy = 0; player.rotation = 0;
             player.mode = "cube"; player.isGrounded = true; player.isDead = false; player.isWin = false;
             player.trail = []; particles = []; isHoldingJump = false;
         }}
@@ -1155,10 +1163,9 @@ game_html = f"""
             }}
 
             player.y += player.vy;
-            let wasGrounded = player.isGrounded;
             player.isGrounded = false;
 
-            // 바닥 기본 충돌
+            // 기본 바닥 충돌
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
@@ -1175,12 +1182,11 @@ game_html = f"""
                 if (p.life <= 0) particles.splice(i, 1);
             }}
 
-            // 오브젝트 충돌 엔진 보정 (벽 버퍼 및 관대한 Hitbox 적용)
+            // 오브젝트 충돌 및 착지 위치 자연스럽게 보정
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
                 if (obj.type === "spike") {{
-                    // 가시는 조금 작게 보정 (너그러운 판정)
                     const margin = 6;
                     if (player.x + player.size - margin > obj.x + margin &&
                         player.x + margin < obj.x + obj.w - margin &&
@@ -1190,20 +1196,19 @@ game_html = f"""
                     }}
                 }} 
                 else if (obj.type === "block") {{
-                    // 블록 충돌 로직 개선 (벽 밀림 및 상단 안전 착지)
-                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
-                        
-                        // 1. 위에서 아래로 착지하는 경우
-                        if (prevY + player.size <= obj.y + 12 && player.vy >= 0) {{
-                            player.y = obj.y - player.size;
+                    if (player.x + player.size > obj.x + 2 && player.x < obj.x + obj.w - 2) {{
+                        // 블록 위 착지 (순간이동 없이 부드럽게 안착)
+                        let landingY = obj.y - player.size;
+                        if (prevY + player.size <= obj.y + 14 && player.vy >= 0) {{
+                            player.y = landingY;
                             player.vy = 0;
                             player.isGrounded = true;
                         }} 
-                        // 2. 블록에 측면 충돌 (벽에 밀림)
-                        else if (player.y + player.size > obj.y + 6 && player.y < obj.y + obj.h - 6) {{
-                            if (prevX + player.size <= obj.x + 8) {{
-                                player.x = obj.x - player.size; // 벽 밖으로 밀어냄
-                                player.isDead = true; // 정면 충돌 시에만 사망
+                        // 블록 측면 충돌
+                        else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 4) {{
+                            if (prevX + player.size <= obj.x + 10) {{
+                                player.x = obj.x - player.size;
+                                player.isDead = true;
                             }}
                         }}
                     }}
@@ -1218,7 +1223,6 @@ game_html = f"""
                 }}
             }}
 
-            // 꾹 누르고 있을 때 바닥/블록 위에서 자동 연속 점프
             if (player.isGrounded && isHoldingJump) {{
                 tryJump();
             }}
