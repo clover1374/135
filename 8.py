@@ -1077,6 +1077,12 @@ if not has_portal:
     MAP_OBJECTS.append({"type": "portal_ship", "x": 2000, "y": 250, "w": 45, "h": 100})
     MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 250, "w": 45, "h": 100})
 
+# 맵 데이터 포탈 확인 및 자동 삽입
+has_portal = any(obj.get("type") in ["portal_ship", "portal_cube"] for obj in MAP_OBJECTS)
+if not has_portal:
+    MAP_OBJECTS.append({"type": "portal_ship", "x": 2000, "y": 250, "w": 45, "h": 100})
+    MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 250, "w": 45, "h": 100})
+
 map_json = json.dumps(MAP_OBJECTS)
 
 game_html = f"""
@@ -1178,13 +1184,13 @@ game_html = f"""
                 else player.vy += 0.55;
 
                 player.vy = Math.max(-7.5, Math.min(7.5, player.vy));
-                player.rotation = player.vy * 3.5; // 비행기 회전 비주얼
+                player.rotation = player.vy * 3.5;
             }}
 
             player.y += player.vy;
             player.isGrounded = false;
 
-            // 비행기 모드/큐브 모드 상/하단 이동 경계 제한 (상/하단 벽에 비행기가 부딪혀도 안죽음)
+            // 비행기 및 큐브 바닥/천장 안전 바운더리
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
@@ -1192,7 +1198,7 @@ game_html = f"""
             }}
             if (player.y <= 10) {{
                 player.y = 10;
-                player.vy = Math.max(0, player.vy); // 천장에 막히고 떨어짐
+                player.vy = 0; // 천장에 닿아도 죽지 않고 미끄러짐
             }}
 
             // 잔상 효과
@@ -1224,12 +1230,23 @@ game_html = f"""
                         let nextBottom = player.y + player.size;
                         let prevBottom = nextBottom - player.vy;
 
-                        if (prevBottom <= obj.y + 10 && nextBottom >= obj.y) {{
+                        // 블록 상단 미끄러짐/착지
+                        if (prevBottom <= obj.y + 12 && nextBottom >= obj.y) {{
                             player.y = obj.y - player.size;
                             player.vy = 0;
                             player.isGrounded = true;
                         }} 
-                        else if (player.y + player.size > obj.y + 6 && player.y < obj.y + obj.h - 6) {{
+                        // 블록 하단 천장 부딪힘 (비행기 모드에서는 부딪혀도 안 죽고 아래로 밀려남)
+                        else if (player.vy < 0 && player.y <= obj.y + obj.h && player.y >= obj.y + obj.h - 12) {{
+                            if (player.mode === "ship") {{
+                                player.y = obj.y + obj.h;
+                                player.vy = 0;
+                            }} else {{
+                                player.isDead = true;
+                            }}
+                        }}
+                        // 정면 벽 충돌에만 사망
+                        else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 8) {{
                             player.isDead = true;
                         }}
                     }}
@@ -1261,13 +1278,11 @@ game_html = f"""
             if (player.x >= finishX) player.isWin = true;
         }}
 
-        // 지오메트리 대시 스타일 리얼 포탈 그리기
         function drawPortal(sx, y, w, h, color, coreColor) {{
             ctx.save();
             let cx = sx + w / 2;
             let cy = y + h / 2;
 
-            // 1. 외각 네온 글로우 효과
             ctx.shadowColor = color;
             ctx.shadowBlur = 15;
             ctx.strokeStyle = color;
@@ -1277,13 +1292,11 @@ game_html = f"""
             ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
             ctx.stroke();
 
-            // 2. 내부 에너지를 품은 타원 코어
             ctx.fillStyle = coreColor;
             ctx.beginPath();
             ctx.ellipse(cx, cy, w / 3, h / 3, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // 3. 포탈 입자 오라 링
             ctx.shadowBlur = 0;
             ctx.fillStyle = "#ffffff";
             for (let i = 0; i < 4; i++) {{
@@ -1296,7 +1309,6 @@ game_html = f"""
             ctx.restore();
         }}
 
-        // 플레이어 캐릭터 렌더링 (비행기 모드 탑승 구현)
         function drawPlayer(x, y, size, rotation, mode, alpha = 1.0) {{
             ctx.save();
             ctx.globalAlpha = alpha;
@@ -1306,7 +1318,6 @@ game_html = f"""
             let half = size / 2;
 
             if (mode === "cube") {{
-                // 기본 큐브 캐릭터
                 ctx.fillStyle = "#00ffc8"; ctx.fillRect(-half, -half, size, size);
                 ctx.fillStyle = "#0b0b12"; ctx.fillRect(-half + 3, -half + 3, size - 6, size - 6);
                 ctx.fillStyle = "#00ffc8"; ctx.fillRect(-half + 6, -half + 6, size - 12, size - 12);
@@ -1314,7 +1325,6 @@ game_html = f"""
                 ctx.fillStyle = "#000000"; ctx.fillRect(-half + 9, -half + 10, 3, 4); ctx.fillRect(-half + 20, -half + 10, 3, 4);
                 ctx.fillRect(-half + 9, -half + 20, 12, 3);
             }} else if (mode === "ship") {{
-                // 1. 우주선 하단 기체
                 ctx.fillStyle = "#ff00d2";
                 ctx.beginPath();
                 ctx.moveTo(-half - 8, 8);
@@ -1328,7 +1338,6 @@ game_html = f"""
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
 
-                // 2. 우주선 내부 엔진 불꽃
                 ctx.fillStyle = "#ffe600";
                 ctx.beginPath();
                 ctx.moveTo(-half - 8, 6);
@@ -1337,7 +1346,6 @@ game_html = f"""
                 ctx.closePath();
                 ctx.fill();
 
-                // 3. 탑승한 축소형 큐브 (우주선 상단 중앙에 탑승)
                 let cSize = 18;
                 let cHalf = cSize / 2;
                 let offsetX = 0;
@@ -1356,14 +1364,12 @@ game_html = f"""
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const camX = player.x - 150;
 
-            // 배경 격자
             ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
             ctx.lineWidth = 1;
             for (let x = -(camX % 40); x < canvas.width; x += 40) {{
                 ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
             }}
 
-            // 바닥
             ctx.fillStyle = "#07070f";
             ctx.fillRect(0, 370, canvas.width, 80);
             ctx.strokeStyle = "#00ffc8"; ctx.lineWidth = 3;
@@ -1371,7 +1377,6 @@ game_html = f"""
             ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
             ctx.shadowBlur = 0;
 
-            // 오브젝트 렌더링
             for (let obj of mapObjects) {{
                 let sx = obj.x - camX;
                 if (sx >= -60 && sx <= canvas.width + 60) {{
@@ -1391,24 +1396,20 @@ game_html = f"""
                 }}
             }}
 
-            // 잔상 효과
             for (let t of player.trail) {{
                 drawPlayer(t.x - camX, t.y, player.size, t.rotation, t.mode, t.alpha * 0.4);
                 t.alpha -= 0.08;
             }}
 
-            // 파티클
             for (let p of particles) {{
                 ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x - camX, p.y, 4, 4);
             }}
             ctx.globalAlpha = 1.0;
 
-            // 플레이어그리기
             if (!player.isDead) {{
                 drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, 1.0);
             }}
 
-            // UI
             let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
             ctx.fillStyle = "#ffffff"; ctx.font = "bold 18px 'Segoe UI'";
             ctx.fillText(progress + "%", 20, 35);
