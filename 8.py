@@ -1,3 +1,9 @@
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(page_title="Geometry Dash Mega Edition", layout="centered")
+st.title("🎮 Geometry Dash - Mega 2000+ Edition")
 # map_data.py - Stereo Madness 2,000+ Full Object Data (Part 1/5)
 
 MAP_OBJECTS = [
