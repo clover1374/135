@@ -1120,6 +1120,48 @@ if not has_ship_portal:
 if not has_cube_portal:
     MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 250, "w": 45, "h": 100})
 
+# 전체 맵 전수 보정 (0%~100% 모든 불가능 구간 자동 자동 수정)
+def sanitize_all_hazards(objects):
+    sanitized = []
+    for obj in objects:
+        x = obj.get("x", 0)
+        y = obj.get("y", 0)
+        h = obj.get("h", 0)
+        w = obj.get("w", 0)
+        o_type = obj.get("type", "")
+
+        # 1. 16% 및 모든 비행기 구간 벽 통로 확보 (y: 100~250 사이 정면 막는 블록 조정)
+        if o_type == "block":
+            # 큐브 점프 한계 초과 블록 보정
+            if h > 75 and y + h >= 370:
+                obj["h"] = 70
+                obj["y"] = 370 - 70
+            # 공중 블록이 통로를 완전히 막는 경우
+            elif 80 <= y <= 240 and h > 80:
+                obj["h"] = 60
+                obj["y"] = 50 # 천장 쪽으로 이동
+
+        # 2. 비행기 구간 가시 밀도 보정 (과도한 억까 가시 제거)
+        if o_type == "spike":
+            # 16%, 31%~35% 비행기 공중 가시 대폭 정리
+            if (8000 <= x <= 9000) or (16000 <= x <= 18500):
+                if y < 300: # 공중에 떠있는 죽음 유발 가시 제거
+                    continue
+
+        sanitized.append(obj)
+    return sanitized
+
+MAP_OBJECTS = sanitize_all_hazards(MAP_OBJECTS)
+
+# 필수 포탈 자동 검증 및 보정
+has_ship_portal = any(obj.get("type") == "portal_ship" for obj in MAP_OBJECTS)
+has_cube_portal = any(obj.get("type") == "portal_cube" for obj in MAP_OBJECTS)
+
+if not has_ship_portal:
+    MAP_OBJECTS.append({"type": "portal_ship", "x": 2000, "y": 250, "w": 45, "h": 100})
+if not has_cube_portal:
+    MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 250, "w": 45, "h": 100})
+
 map_json = json.dumps(MAP_OBJECTS)
 
 game_html = f"""
@@ -1211,7 +1253,7 @@ game_html = f"""
             portalAnim += 0.08;
             player.x += speedX;
 
-            // 모드별 물리 처리
+            // 모드별 물리
             if (player.mode === "cube") {{
                 player.vy += gravity;
                 if (!player.isGrounded) player.rotation += 8;
@@ -1227,7 +1269,7 @@ game_html = f"""
             player.y += player.vy;
             player.isGrounded = false;
 
-            // 천장/바닥 안사(No-Die) 완충 구역
+            // 비행기 및 큐브 천장/바닥 완충 (천장/바닥 안사)
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
@@ -1254,7 +1296,7 @@ game_html = f"""
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
                 if (obj.type === "spike") {{
-                    const margin = 8; // 판정 완화
+                    const margin = 8;
                     if (player.x + player.size - margin > obj.x + margin &&
                         player.x + margin < obj.x + obj.w - margin &&
                         player.y + player.size - margin > obj.y + margin &&
@@ -1267,13 +1309,13 @@ game_html = f"""
                         let nextBottom = player.y + player.size;
                         let prevBottom = nextBottom - player.vy;
 
-                        // 착지 판정
+                        // 상단 착지
                         if (prevBottom <= obj.y + 14 && nextBottom >= obj.y) {{
                             player.y = obj.y - player.size;
                             player.vy = 0;
                             player.isGrounded = true;
                         }} 
-                        // 천장 충돌 (비행기는 사망 없음)
+                        // 천장 부딪힘 (비행기 모드 안전)
                         else if (player.vy < 0 && player.y <= obj.y + obj.h && player.y >= obj.y + obj.h - 14) {{
                             if (player.mode === "ship") {{
                                 player.y = obj.y + obj.h;
@@ -1282,7 +1324,7 @@ game_html = f"""
                                 player.isDead = true;
                             }}
                         }}
-                        // 벽 정면 충돌
+                        // 정면 벽 충돌에만 사망
                         else if (player.y + player.size > obj.y + 10 && player.y < obj.y + obj.h - 10) {{
                             player.isDead = true;
                         }}
