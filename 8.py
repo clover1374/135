@@ -1307,9 +1307,6 @@ MAP_OBJECTS = [
 # =========================================================
 map_json = json.dumps(MAP_OBJECTS)
 
-# =========================================================
-# 3. Streamlit Cloud 브라우저 실행용 엔진 코드
-# =========================================================
 game_html = f"""
 <!DOCTYPE html>
 <html>
@@ -1328,9 +1325,8 @@ game_html = f"""
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // 파이썬의 거대한 MAP_OBJECTS 데이터를 자바스크립트로 전달받음
         const mapObjects = {map_json};
-        const finishX = 52100; // 최종 골인 지점 X 좌표
+        const finishX = 52100;
 
         let player = {{ x: 100, y: 340, size: 30, vy: 0, mode: "cube", isGrounded: true, isDead: false, isWin: false }};
         const gravity = 0.8;
@@ -1366,27 +1362,22 @@ game_html = f"""
         function update() {{
             if (player.isDead || player.isWin) return;
 
-            // 자동 전진
             player.x += 6.5;
 
-            // 중력 및 이동
             if (player.mode === "cube") {{
                 player.vy += gravity;
             }} else if (player.mode === "ship") {{
-                // 비행선 모드 간단 처리
                 player.vy += gravity * 0.5;
             }}
 
             player.y += player.vy;
 
-            // 바닥 충돌
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
                 player.isGrounded = true;
             }}
 
-            // 충돌 검사 및 최적화 (화면 근처 오브젝트만)
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
@@ -1423,7 +1414,6 @@ game_html = f"""
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const camX = player.x - 150;
 
-            // 바닥
             ctx.fillStyle = "#0a0a12";
             ctx.fillRect(0, 370, canvas.width, 80);
             ctx.strokeStyle = "#00ffc8";
@@ -1433,7 +1423,6 @@ game_html = f"""
             ctx.lineTo(canvas.width, 370);
             ctx.stroke();
 
-            // 맵 오브젝트 렌더링
             for (let obj of mapObjects) {{
                 let screenX = obj.x - camX;
                 if (screenX >= -50 && screenX <= canvas.width + 50) {{
@@ -1442,7 +1431,7 @@ game_html = f"""
                         ctx.fillRect(screenX, obj.y, obj.w, obj.h);
                         ctx.strokeStyle = "#646496";
                         ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
-                    } else if (obj.type === "spike") {{
+                    }} else if (obj.type === "spike") {{
                         ctx.fillStyle = "#ff3232";
                         ctx.beginPath();
                         ctx.moveTo(screenX, obj.y + obj.h);
@@ -1450,31 +1439,29 @@ game_html = f"""
                         ctx.lineTo(screenX + obj.w, obj.y + obj.h);
                         ctx.closePath();
                         ctx.fill();
-                    } else if (obj.type === "pad_yellow") {{
+                    }} else if (obj.type === "pad_yellow") {{
                         ctx.fillStyle = "#ffff00";
                         ctx.fillRect(screenX, obj.y, obj.w, obj.h);
-                    } else if (obj.type === "ring_yellow") {{
+                    }} else if (obj.type === "ring_yellow") {{
                         ctx.strokeStyle = "#ffe600";
                         ctx.lineWidth = 3;
                         ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
-                    } else if (obj.type === "portal_ship") {{
+                    }} else if (obj.type === "portal_ship") {{
                         ctx.strokeStyle = "#ff7800";
                         ctx.lineWidth = 3;
                         ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
-                    } else if (obj.type === "portal_cube") {{
+                    }} else if (obj.type === "portal_cube") {{
                         ctx.strokeStyle = "#00c8ff";
                         ctx.lineWidth = 3;
                         ctx.strokeRect(screenX, obj.y, obj.w, obj.h);
-                    }
+                    }}
                 }}
             }}
 
-            // 플레이어
             let playerScreenX = player.x - camX;
             ctx.fillStyle = player.mode === "cube" ? "#00ff80" : "#ff8000";
             ctx.fillRect(playerScreenX, player.y, player.size, player.size);
 
-            // UI (진행도)
             let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
             ctx.fillStyle = "white";
             ctx.font = "bold 16px Arial";
