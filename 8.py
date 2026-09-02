@@ -1083,6 +1083,43 @@ if not has_portal:
     MAP_OBJECTS.append({"type": "portal_ship", "x": 2000, "y": 250, "w": 45, "h": 100})
     MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 250, "w": 45, "h": 100})
 
+# 맵 데이터 생성 및 불가능 구간 자동 보정
+def fix_map_objects(objects):
+    fixed = []
+    for obj in objects:
+        # 12% 구간 (x: 6000~6600) 정면 벽 제거 및 위치 조정
+        if 6100 <= obj.get("x", 0) <= 6500 and obj.get("type") == "block":
+            if obj.get("y", 0) < 200:
+                obj["y"] = 50   # 천장 쪽으로 이동
+                obj["h"] = 60
+            else:
+                obj["y"] = 280  # 바닥 쪽으로 이동
+                obj["h"] = 60
+        
+        # 24% 구간 (x: 12400~12800) 좁은 통로 가시 제거
+        if 12400 <= obj.get("x", 0) <= 12800 and obj.get("type") == "spike":
+            continue # 과도한 가시 제거
+            
+        # 41% 구간 (x: 21000~21500) 불가능한 벽 높이 수정
+        if 21000 <= obj.get("x", 0) <= 21500 and obj.get("type") == "block":
+            if obj.get("h", 0) > 90:
+                obj["h"] = 80
+                obj["y"] = 370 - 80
+                
+        fixed.append(obj)
+    return fixed
+
+MAP_OBJECTS = fix_map_objects(MAP_OBJECTS)
+
+# 포탈 필수 확인
+has_ship_portal = any(obj.get("type") == "portal_ship" for obj in MAP_OBJECTS)
+has_cube_portal = any(obj.get("type") == "portal_cube" for obj in MAP_OBJECTS)
+
+if not has_ship_portal:
+    MAP_OBJECTS.append({"type": "portal_ship", "x": 2000, "y": 250, "w": 45, "h": 100})
+if not has_cube_portal:
+    MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 250, "w": 45, "h": 100})
+
 map_json = json.dumps(MAP_OBJECTS)
 
 game_html = f"""
@@ -1190,7 +1227,7 @@ game_html = f"""
             player.y += player.vy;
             player.isGrounded = false;
 
-            // 비행기 및 큐브 바닥/천장 안전 바운더리
+            // 천장/바닥 안사(No-Die) 완충 구역
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
@@ -1198,7 +1235,7 @@ game_html = f"""
             }}
             if (player.y <= 10) {{
                 player.y = 10;
-                player.vy = 0; // 천장에 닿아도 죽지 않고 미끄러짐
+                player.vy = 0;
             }}
 
             // 잔상 효과
@@ -1217,7 +1254,7 @@ game_html = f"""
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
                 if (obj.type === "spike") {{
-                    const margin = 7;
+                    const margin = 8; // 판정 완화
                     if (player.x + player.size - margin > obj.x + margin &&
                         player.x + margin < obj.x + obj.w - margin &&
                         player.y + player.size - margin > obj.y + margin &&
@@ -1230,14 +1267,14 @@ game_html = f"""
                         let nextBottom = player.y + player.size;
                         let prevBottom = nextBottom - player.vy;
 
-                        // 블록 상단 미끄러짐/착지
-                        if (prevBottom <= obj.y + 12 && nextBottom >= obj.y) {{
+                        // 착지 판정
+                        if (prevBottom <= obj.y + 14 && nextBottom >= obj.y) {{
                             player.y = obj.y - player.size;
                             player.vy = 0;
                             player.isGrounded = true;
                         }} 
-                        // 블록 하단 천장 부딪힘 (비행기 모드에서는 부딪혀도 안 죽고 아래로 밀려남)
-                        else if (player.vy < 0 && player.y <= obj.y + obj.h && player.y >= obj.y + obj.h - 12) {{
+                        // 천장 충돌 (비행기는 사망 없음)
+                        else if (player.vy < 0 && player.y <= obj.y + obj.h && player.y >= obj.y + obj.h - 14) {{
                             if (player.mode === "ship") {{
                                 player.y = obj.y + obj.h;
                                 player.vy = 0;
@@ -1245,8 +1282,8 @@ game_html = f"""
                                 player.isDead = true;
                             }}
                         }}
-                        // 정면 벽 충돌에만 사망
-                        else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 8) {{
+                        // 벽 정면 충돌
+                        else if (player.y + player.size > obj.y + 10 && player.y < obj.y + obj.h - 10) {{
                             player.isDead = true;
                         }}
                     }}
