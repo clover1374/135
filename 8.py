@@ -720,8 +720,8 @@ MAP_OBJECTS = [
     {"type": "block", "x": 33230, "y": 280, "w": 30, "h": 90},
     {"type": "block", "x": 33260, "y": 280, "w": 30, "h": 90},
     {"type": "block", "x": 33290, "y": 280, "w": 30, "h": 90},
-    {"type": "block", "x": 33320, "y": 280, "w": 30, "h": 90}
-]
+    {"type": "block", "x": 33320, "y": 280, "w": 30, "h": 90},
+
 # === [64/100] Extended Region: Deep Lava Cavern Opening ===
     {"type": "block", "x": 33450, "y": 310, "w": 30, "h": 60},
     {"type": "block", "x": 33480, "y": 310, "w": 30, "h": 60},
