@@ -1306,6 +1306,41 @@ MAP_OBJECTS = [
     {"type": "spike", "x": 6200, "y": 340, "w": 30, "h": 30},
 ]
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(page_title="Geometry Dash Streamlit", layout="centered")
+
+# 계단 높이 및 간격을 수정한 맵 오브젝트 데이터
+MAP_OBJECTS = [
+    # 큐브 구간 1
+    {"type": "spike", "x": 800, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 1200, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 1230, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 1700, "y": 310, "w": 90, "h": 60},
+    {"type": "spike", "x": 1730, "y": 280, "w": 30, "h": 30},
+    {"type": "spike", "x": 2200, "y": 340, "w": 30, "h": 30},
+
+    # 비행선 포탈 1
+    {"type": "portal_ship", "x": 2700, "y": 180, "w": 40, "h": 100},
+    {"type": "block", "x": 3200, "y": 0, "w": 200, "h": 150},
+    {"type": "block", "x": 3200, "y": 260, "w": 200, "h": 110},
+    {"type": "block", "x": 3800, "y": 120, "w": 150, "h": 130},
+    {"type": "spike", "x": 4200, "y": 340, "w": 30, "h": 30},
+
+    # 큐브 포탈 2
+    {"type": "portal_cube", "x": 4700, "y": 180, "w": 40, "h": 100},
+    
+    # [수정된 계단 구간] - 뛰어넘기 수월하도록 높이 완화
+    {"type": "block", "x": 5100, "y": 320, "w": 80, "h": 50},
+    {"type": "block", "x": 5220, "y": 270, "w": 80, "h": 100},
+    {"type": "block", "x": 5340, "y": 220, "w": 80, "h": 150},
+    
+    {"type": "spike", "x": 5700, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 6200, "y": 340, "w": 30, "h": 30},
+]
+
 map_json = json.dumps(MAP_OBJECTS)
 FINISH_X = 6800
 
@@ -1342,13 +1377,12 @@ game_html = f"""
 </head>
 <body tabindex="0">
     <canvas id="gameCanvas" width="800" height="450"></canvas>
-    <div class="info">💡 [게임 화면 클릭] 후 [스페이스바] / [위쪽 화살표] / [마우스 클릭 꾹]으로 점프하세요! (리셋: R)</div>
+    <div class="info">💡 [화면 클릭] 후 [스페이스바] / [위쪽 화살표] / [마우스 클릭 꾹] (리셋: R)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // 자동 포커스 처리
         window.focus();
         document.body.focus();
 
@@ -1392,7 +1426,6 @@ game_html = f"""
             player.suckAnim = false; player.suckScale = 1.0; player.suckAngle = 0;
         }}
 
-        // 입력 처리 (통합)
         function handleInputStart() {{
             window.focus();
             if (player.isDead) {{
@@ -1427,7 +1460,6 @@ game_html = f"""
         canvas.addEventListener("touchstart", (e) => {{ e.preventDefault(); handleInputStart(); }});
         window.addEventListener("touchend", (e) => {{ e.preventDefault(); handleInputEnd(); }});
 
-        // 파티클 생성
         function addJumpParticles() {{
             for (let i = 0; i < 8; i++) {{
                 particles.push({{
@@ -1456,14 +1488,12 @@ game_html = f"""
         function update() {{
             portalAnim += 0.08;
 
-            // 파티클 업데이트
             for (let i = particles.length - 1; i >= 0; i--) {{
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
                 if (p.alpha <= 0) particles.splice(i, 1);
             }}
 
-            // 클리어 연출 (블랙홀 흡수)
             if (player.suckAnim) {{
                 player.suckScale -= 0.025;
                 player.suckAngle += 20;
@@ -1482,11 +1512,9 @@ game_html = f"""
 
             if (player.isDead || player.isWin) return;
 
-            // 이동
             player.x += speedX;
             let prevY = player.y;
 
-            // 궤적 잔상
             if (Math.random() < 0.6) {{
                 player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, mode: player.mode, alpha: 0.6 }});
             }}
@@ -1495,7 +1523,6 @@ game_html = f"""
                 if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
             }}
 
-            // 모드별 물리
             if (player.mode === "cube") {{
                 player.vy += gravity;
                 if (!player.isGrounded) player.rotation += 9.5;
@@ -1510,11 +1537,10 @@ game_html = f"""
             player.y += player.vy;
             player.isGrounded = false;
 
-            // 바닥/천장 한계
             if (player.y >= 340) {{ player.y = 340; player.vy = 0; player.isGrounded = true; }}
             if (player.y <= 10) {{ player.y = 10; player.vy = 0; }}
 
-            // 충돌 판정
+            // 개선된 블록 충돌 판정 (계단 끼임 방지)
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
@@ -1530,12 +1556,13 @@ game_html = f"""
                         let currentBottom = player.y + player.size;
                         let previousBottom = prevY + player.size;
 
-                        if (previousBottom <= obj.y + 14 && currentBottom >= obj.y && player.vy >= 0) {{
+                        // 상단 착지 허용 범위를 20px로 넓혀 계단 착지가 원활하도록 수정
+                        if (previousBottom <= obj.y + 20 && currentBottom >= obj.y && player.vy >= 0) {{
                             player.y = obj.y - player.size; player.vy = 0; player.isGrounded = true;
                         }} else if (prevY >= obj.y + obj.h - 12 && player.y <= obj.y + obj.h && player.vy < 0) {{
                             if (player.mode === "ship") {{ player.y = obj.y + obj.h; player.vy = 0; }}
                             else die();
-                        }} else if (player.y + player.size > obj.y + 6 && player.y < obj.y + obj.h - 6) {{
+                        }} else if (player.y + player.size > obj.y + 10 && player.y < obj.y + obj.h - 6) {{
                             die();
                         }}
                     }}
@@ -1579,7 +1606,6 @@ game_html = f"""
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const camX = player.x - 150;
 
-            // 배경 파동 패턴
             ctx.strokeStyle = "rgba(0, 255, 200, 0.05)";
             ctx.lineWidth = 1;
             for (let i = 0; i < canvas.width; i += 40) {{
@@ -1587,17 +1613,14 @@ game_html = f"""
                 ctx.beginPath(); ctx.moveTo(i - offset, 0); ctx.lineTo(i - offset, canvas.height); ctx.stroke();
             }}
 
-            // 잔상 렌더링
             for (let t of player.trail) {{
                 drawPlayer(t.x - camX, t.y, player.size, t.rotation, t.mode, 1.0, t.alpha * 0.4);
             }}
 
-            // 바닥
             ctx.fillStyle = "#05050b"; ctx.fillRect(0, 370, canvas.width, 80);
             ctx.strokeStyle = "#00ffc8"; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
 
-            // 장애물 & 포탈
             for (let obj of mapObjects) {{
                 let sx = obj.x - camX;
                 if (sx >= -60 && sx <= canvas.width + 60) {{
@@ -1619,7 +1642,6 @@ game_html = f"""
                 }}
             }}
 
-            // 파티클
             for (let p of particles) {{
                 ctx.save();
                 ctx.globalAlpha = p.alpha;
@@ -1628,12 +1650,10 @@ game_html = f"""
                 ctx.restore();
             }}
 
-            // 플레이어
             if (!player.isDead && player.suckScale > 0) {{
                 drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, player.suckScale);
             }}
 
-            // UI
             let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
             ctx.fillStyle = "#ffffff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "left";
             ctx.fillText(progress + "%", 20, 35);
