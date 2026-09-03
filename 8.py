@@ -1162,7 +1162,62 @@ if not has_ship_portal:
 if not has_cube_portal:
     MAP_OBJECTS.append({"type": "portal_cube", "x": 6000, "y": 250, "w": 45, "h": 100})
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+# ==========================================
+# [수학적 물리 계산 기반 맵 좌표 배치]
+# 바닥 y = 340 (플레이어 하단 370)
+# ==========================================
+MAP_OBJECTS = [
+    # --- [0% ~ 10%]: 초반 큐브 적응 구간 ---
+    # x=100~700: 출발 안전 지대 (무적 및 대기)
+    {"type": "spike", "x": 800, "y": 340, "w": 30, "h": 30},
+    
+    # 블록 착지 (높이 30px, y=310 / 점프 여유 75px)
+    {"type": "block", "x": 1200, "y": 310, "w": 90, "h": 60},
+    {"type": "spike", "x": 1700, "y": 340, "w": 30, "h": 30},
+
+    # --- [10% ~ 25%]: 첫 번째 비행기 구간 ---
+    # 비행기 포탈 진입 (x = 2200)
+    {"type": "portal_ship", "x": 2200, "y": 180, "w": 40, "h": 100},
+    
+    # 기존 7% 사망 지점 완벽 수정: 통로 높이 유격 160px 확보 (y=100 ~ 260)
+    {"type": "block", "x": 2800, "y": 0, "w": 120, "h": 100},    # 천장 (y: 0~100)
+    {"type": "block", "x": 2800, "y": 260, "w": 120, "h": 110},  # 바닥 (y: 260~370)
+    
+    {"type": "block", "x": 3500, "y": 0, "w": 150, "h": 120},    # 천장 (y: 0~120)
+    {"type": "block", "x": 4200, "y": 240, "w": 150, "h": 130},  # 바닥 (y: 240~370)
+
+    # --- [25% ~ 50%]: 큐브 모드 복귀 및 계단 구간 ---
+    # 큐브 포탈 복귀 (x = 4800)
+    {"type": "portal_cube", "x": 4800, "y": 180, "w": 40, "h": 100},
+    
+    # 점프 닿는 완만한 계단 (높이 차이 30px씩 상승)
+    {"type": "block", "x": 5400, "y": 310, "w": 90, "h": 60},
+    {"type": "block", "x": 5600, "y": 280, "w": 90, "h": 90},
+    {"type": "spike", "x": 6200, "y": 340, "w": 30, "h": 30},
+
+    # --- [50% ~ 75%]: 두 번째 비행기 구간 ---
+    {"type": "portal_ship", "x": 6800, "y": 180, "w": 40, "h": 100},
+    
+    # 웨이브 형태 넓은 통로 (유격 150px)
+    {"type": "block", "x": 7400, "y": 220, "w": 180, "h": 150},  # 아래쪽
+    {"type": "block", "x": 8000, "y": 0, "w": 180, "h": 150},    # 위쪽
+    {"type": "block", "x": 8600, "y": 220, "w": 180, "h": 150},  # 아래쪽
+
+    # --- [75% ~ 100%]: 최종 큐브 질주 구간 ---
+    {"type": "portal_cube", "x": 9200, "y": 180, "w": 40, "h": 100},
+    {"type": "spike", "x": 9700, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 10100, "y": 310, "w": 120, "h": 60},
+    {"type": "spike", "x": 10600, "y": 340, "w": 30, "h": 30},
+]
+
 map_json = json.dumps(MAP_OBJECTS)
+
+# 맵의 실제 끝 지점 좌표로 클리어 퍼센트 산정 기준 자동 연동
+FINISH_X = 11000
 
 game_html = f"""
 <!DOCTYPE html>
@@ -1183,7 +1238,7 @@ game_html = f"""
         const ctx = canvas.getContext("2d");
 
         const mapObjects = {map_json};
-        const finishX = 52100;
+        const finishX = {FINISH_X};
 
         let player = {{
             x: 100, y: 340, size: 30, vy: 0, rotation: 0,
@@ -1268,7 +1323,6 @@ game_html = f"""
 
             let prevY = player.y;
 
-            // 모드별 물리 처리
             if (player.mode === "cube") {{
                 player.vy += gravity;
                 if (!player.isGrounded) player.rotation += 8;
@@ -1284,7 +1338,6 @@ game_html = f"""
             player.y += player.vy;
             player.isGrounded = false;
 
-            // 바닥 및 천장 보정
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
@@ -1295,18 +1348,16 @@ game_html = f"""
                 player.vy = 0;
             }}
 
-            // 잔상 효과
             player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, alpha: 0.5, mode: player.mode }});
             if (player.trail.length > 5) player.trail.shift();
 
-            // 파티클
             for (let i = particles.length - 1; i >= 0; i--) {{
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy; p.life -= 0.05;
                 if (p.life <= 0) particles.splice(i, 1);
             }}
 
-            // 충돌 검사
+            // 정밀 물리 충돌 판정
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
@@ -1324,7 +1375,7 @@ game_html = f"""
                         let currentBottom = player.y + player.size;
                         let previousBottom = prevY + player.size;
 
-                        // 상단 착지
+                        // 블록 착지
                         if (previousBottom <= obj.y + 12 && currentBottom >= obj.y && player.vy >= 0) {{
                             player.y = obj.y - player.size;
                             player.vy = 0;
@@ -1339,7 +1390,7 @@ game_html = f"""
                                 die();
                             }}
                         }}
-                        // 측면 충돌 (벽에 박음)
+                        // 측면 정면 벽 충돌
                         else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 8) {{
                             die();
                         }}
