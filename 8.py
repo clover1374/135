@@ -1379,8 +1379,34 @@ MAP_OBJECTS = [
     {"type": "spike", "x": 5360, "y": 340, "w": 30, "h": 30},
 ]
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(page_title="Geometry Dash Easy Mode", layout="centered")
+
+# 클리어하기 쉽게 조정된 맵 데이터 (가시 감소, 터널 넓어짐)
+MAP_OBJECTS = [
+    # [구간 1] 여유로운 큐브 점프
+    {"type": "spike", "x": 800, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 1200, "y": 310, "w": 80, "h": 60},
+    {"type": "spike", "x": 1600, "y": 340, "w": 30, "h": 30},
+
+    # [구간 2] 비행선 포탈 (넓고 편안한 공간)
+    {"type": "portal_ship", "x": 2100, "y": 180, "w": 40, "h": 100},
+    {"type": "block", "x": 2500, "y": 0, "w": 120, "h": 120},   # 천장 높임
+    {"type": "block", "x": 2500, "y": 300, "w": 120, "h": 70},   # 바닥 낮춤
+    {"type": "block", "x": 3000, "y": 0, "w": 120, "h": 100},
+    {"type": "block", "x": 3000, "y": 280, "w": 120, "h": 90},
+
+    # [구간 3] 큐브 포탈 복귀 & 마무리
+    {"type": "portal_cube", "x": 3600, "y": 180, "w": 40, "h": 100},
+    {"type": "block", "x": 4000, "y": 320, "w": 80, "h": 50},
+    {"type": "spike", "x": 4500, "y": 340, "w": 30, "h": 30},
+]
+
 map_json = json.dumps(MAP_OBJECTS)
-FINISH_X = 5800
+FINISH_X = 5000
 
 game_html = f"""
 <!DOCTYPE html>
@@ -1415,7 +1441,7 @@ game_html = f"""
 </head>
 <body tabindex="0">
     <canvas id="gameCanvas" width="800" height="450"></canvas>
-    <div class="info">💡 [화면 클릭] 후 [스페이스바] / [위쪽 화살표] / [마우스 클릭 꾹] (리셋: R)</div>
+    <div class="info">💡 [클릭 / 스페이스바 / 위쪽 화살표]로 점프 및 비행 (리셋: R)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -1437,10 +1463,10 @@ game_html = f"""
         let particles = [];
         let portalAnim = 0;
         
-        // 이동 속도를 대폭 하향하여 반응 속도 확보 (7.5 -> 4.5)
-        const speedX = 4.5;
-        const gravity = 0.82;
-        const jumpForce = -12.8;
+        // 이동 속도를 3.0으로 낮춰 완벽한 반응 시간 확보
+        const speedX = 3.0;
+        const gravity = 0.65;
+        const jumpForce = -11.5;
 
         function tryJump() {{
             if (!player.isDead && !player.isWin && player.mode === "cube" && player.isGrounded) {{
@@ -1500,24 +1526,24 @@ game_html = f"""
         window.addEventListener("touchend", (e) => {{ e.preventDefault(); handleInputEnd(); }});
 
         function addJumpParticles() {{
-            for (let i = 0; i < 8; i++) {{
+            for (let i = 0; i < 6; i++) {{
                 particles.push({{
                     x: player.x + 15, y: player.y + 30,
-                    vx: (Math.random() - 0.5) * 4 - 2,
+                    vx: (Math.random() - 0.5) * 3,
                     vy: Math.random() * 2 + 1,
-                    size: Math.random() * 4 + 2,
+                    size: Math.random() * 3 + 2,
                     color: "#00ffc8", alpha: 1.0
                 }});
             }}
         }}
 
         function addExplosionParticles() {{
-            for (let i = 0; i < 35; i++) {{
+            for (let i = 0; i < 30; i++) {{
                 particles.push({{
                     x: player.x + 15, y: player.y + 15,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    size: Math.random() * 6 + 3,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    size: Math.random() * 5 + 2,
                     color: Math.random() > 0.5 ? "#ff2a6d" : "#ffae00",
                     alpha: 1.0
                 }});
@@ -1554,25 +1580,24 @@ game_html = f"""
             player.x += speedX;
             let prevY = player.y;
 
-            if (Math.random() < 0.5) {{
-                player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, mode: player.mode, alpha: 0.6 }});
+            if (Math.random() < 0.4) {{
+                player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, mode: player.mode, alpha: 0.5 }});
             }}
             for (let i = player.trail.length - 1; i >= 0; i--) {{
                 player.trail[i].alpha -= 0.05;
                 if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
             }}
 
-            // 모드별 물리 로직
+            // 모드별 조작감 부드럽게 조정
             if (player.mode === "cube") {{
                 player.vy += gravity;
-                if (!player.isGrounded) player.rotation += 8;
+                if (!player.isGrounded) player.rotation += 6;
                 else player.rotation = Math.round(player.rotation / 90) * 90;
             }} else if (player.mode === "ship") {{
-                // 비행기 컨트롤 물리 감도 조정
-                if (isHoldingJump) player.vy -= 0.65;
-                else player.vy += 0.55;
-                player.vy = Math.max(-6.5, Math.min(6.5, player.vy));
-                player.rotation = player.vy * 4;
+                if (isHoldingJump) player.vy -= 0.45;
+                else player.vy += 0.40;
+                player.vy = Math.max(-4.5, Math.min(4.5, player.vy));
+                player.rotation = player.vy * 3.5;
             }}
 
             player.y += player.vy;
@@ -1581,12 +1606,12 @@ game_html = f"""
             if (player.y >= 340) {{ player.y = 340; player.vy = 0; player.isGrounded = true; }}
             if (player.y <= 10) {{ player.y = 10; player.vy = 0; }}
 
-            // 충돌 판정
+            // 판정 (판정 범위를 다소 넉넉하게 수정)
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
                 if (obj.type === "spike") {{
-                    const margin = 6;
+                    const margin = 8;
                     if (player.x + player.size - margin > obj.x + margin &&
                         player.x + margin < obj.x + obj.w - margin &&
                         player.y + player.size - margin > obj.y + margin &&
@@ -1619,7 +1644,6 @@ game_html = f"""
             if (player.x >= finishX && !player.suckAnim) player.suckAnim = true;
         }}
 
-        // 비행기 위에 큐브가 탑승한 레이아웃 보정 드로잉 함수
         function drawPlayer(x, y, size, rotation, mode, scale = 1.0, alpha = 1.0) {{
             ctx.save();
             ctx.globalAlpha = alpha;
@@ -1635,7 +1659,6 @@ game_html = f"""
                 ctx.fillStyle = "#ffffff"; ctx.fillRect(-half + 7, -half + 8, 5, 7); ctx.fillRect(-half + 18, -half + 8, 5, 7);
                 ctx.fillStyle = "#000000"; ctx.fillRect(-half + 9, -half + 10, 3, 4); ctx.fillRect(-half + 20, -half + 10, 3, 4);
             }} else if (mode === "ship") {{
-                // 1. 비행기 선체 (하단)
                 ctx.fillStyle = "#ff00d2"; ctx.beginPath();
                 ctx.moveTo(-half - 10, 10); 
                 ctx.lineTo(half + 14, 6); 
@@ -1644,13 +1667,11 @@ game_html = f"""
                 ctx.closePath(); ctx.fill();
                 ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5; ctx.stroke();
 
-                // 2. 비행기에 타있는 큐브 (상단)
                 let miniSize = 18;
                 let cubeY = -half - 2;
                 ctx.fillStyle = "#00ffc8"; ctx.fillRect(-miniSize/2, cubeY, miniSize, miniSize);
                 ctx.fillStyle = "#090915"; ctx.fillRect(-miniSize/2 + 2, cubeY + 2, miniSize - 4, miniSize - 4);
                 ctx.fillStyle = "#00ffc8"; ctx.fillRect(-miniSize/2 + 4, cubeY + 4, miniSize - 8, miniSize - 8);
-                // 눈
                 ctx.fillStyle = "#ffffff"; ctx.fillRect(-miniSize/2 + 3, cubeY + 4, 3, 4); ctx.fillRect(-miniSize/2 + 10, cubeY + 4, 3, 4);
             }}
             ctx.restore();
