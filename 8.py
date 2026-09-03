@@ -1188,7 +1188,7 @@ game_html = f"""
         let player = {{
             x: 100, y: 340, size: 30, vy: 0, rotation: 0,
             mode: "cube", isGrounded: true, isDead: false, isWin: false,
-            trail: []
+            trail: [], deathPercent: 0
         }};
 
         let isHoldingJump = false;
@@ -1206,10 +1206,17 @@ game_html = f"""
             }}
         }}
 
+        function die() {{
+            if (!player.isDead) {{
+                player.isDead = true;
+                player.deathPercent = Math.min(100, Math.floor((player.x / finishX) * 100));
+            }}
+        }}
+
         function reset() {{
             player.x = 100; player.y = 340; player.vy = 0; player.rotation = 0;
             player.mode = "cube"; player.isGrounded = true; player.isDead = false; player.isWin = false;
-            player.trail = []; particles = []; isHoldingJump = false;
+            player.trail = []; particles = []; isHoldingJump = false; player.deathPercent = 0;
         }}
 
         function createParticles(x, y, color) {{
@@ -1224,7 +1231,9 @@ game_html = f"""
 
         window.addEventListener("keydown", (e) => {{
             if (e.code === "Space" || e.code === "ArrowUp") {{
-                if (!isHoldingJump) {{
+                if (player.isDead) {{
+                    reset();
+                }} else if (!isHoldingJump) {{
                     isHoldingJump = true;
                     tryJump();
                 }}
@@ -1240,6 +1249,10 @@ game_html = f"""
         }});
 
         canvas.addEventListener("mousedown", () => {{
+            if (player.isDead) {{
+                reset();
+                return;
+            }}
             isHoldingJump = true;
             tryJump();
         }});
@@ -1253,7 +1266,9 @@ game_html = f"""
             portalAnim += 0.08;
             player.x += speedX;
 
-            // 모드별 물리
+            let prevY = player.y;
+
+            // 모드별 물리 처리
             if (player.mode === "cube") {{
                 player.vy += gravity;
                 if (!player.isGrounded) player.rotation += 8;
@@ -1269,7 +1284,7 @@ game_html = f"""
             player.y += player.vy;
             player.isGrounded = false;
 
-            // 비행기 및 큐브 천장/바닥 완충 (천장/바닥 안사)
+            // 바닥 및 천장 보정
             if (player.y >= 340) {{
                 player.y = 340;
                 player.vy = 0;
@@ -1291,42 +1306,42 @@ game_html = f"""
                 if (p.life <= 0) particles.splice(i, 1);
             }}
 
-            // 충돌 체크
+            // 충돌 검사
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
                 if (obj.type === "spike") {{
-                    const margin = 8;
+                    const margin = 6;
                     if (player.x + player.size - margin > obj.x + margin &&
                         player.x + margin < obj.x + obj.w - margin &&
                         player.y + player.size - margin > obj.y + margin &&
                         player.y + margin < obj.y + obj.h) {{
-                        player.isDead = true;
+                        die();
                     }}
                 }} 
                 else if (obj.type === "block") {{
                     if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
-                        let nextBottom = player.y + player.size;
-                        let prevBottom = nextBottom - player.vy;
+                        let currentBottom = player.y + player.size;
+                        let previousBottom = prevY + player.size;
 
                         // 상단 착지
-                        if (prevBottom <= obj.y + 14 && nextBottom >= obj.y) {{
+                        if (previousBottom <= obj.y + 12 && currentBottom >= obj.y && player.vy >= 0) {{
                             player.y = obj.y - player.size;
                             player.vy = 0;
                             player.isGrounded = true;
                         }} 
-                        // 천장 부딪힘 (비행기 모드 안전)
-                        else if (player.vy < 0 && player.y <= obj.y + obj.h && player.y >= obj.y + obj.h - 14) {{
+                        // 천장 충돌
+                        else if (prevY >= obj.y + obj.h - 10 && player.y <= obj.y + obj.h && player.vy < 0) {{
                             if (player.mode === "ship") {{
                                 player.y = obj.y + obj.h;
                                 player.vy = 0;
                             }} else {{
-                                player.isDead = true;
+                                die();
                             }}
                         }}
-                        // 정면 벽 충돌에만 사망
-                        else if (player.y + player.size > obj.y + 10 && player.y < obj.y + obj.h - 10) {{
-                            player.isDead = true;
+                        // 측면 충돌 (벽에 박음)
+                        else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 8) {{
+                            die();
                         }}
                     }}
                 }} 
@@ -1491,13 +1506,14 @@ game_html = f"""
 
             let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
             ctx.fillStyle = "#ffffff"; ctx.font = "bold 18px 'Segoe UI'";
+            ctx.textAlign = "left";
             ctx.fillText(progress + "%", 20, 35);
 
             if (player.isDead) {{
                 ctx.fillStyle = "#ff2a6d"; ctx.font = "bold 28px 'Segoe UI'"; ctx.textAlign = "center";
-                ctx.fillText("💥 GAME OVER", canvas.width / 2, 200);
+                ctx.fillText("💥 GAME OVER (" + player.deathPercent + "%)", canvas.width / 2, 190);
                 ctx.font = "16px 'Segoe UI'"; ctx.fillStyle = "#aaa";
-                ctx.fillText("Press 'R' or Space to Retry", canvas.width / 2, 235);
+                ctx.fillText("Press 'R' or Space / Click to Retry", canvas.width / 2, 230);
             }} else if (player.isWin) {{
                 ctx.fillStyle = "#00ffc8"; ctx.font = "bold 28px 'Segoe UI'"; ctx.textAlign = "center";
                 ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 200);
