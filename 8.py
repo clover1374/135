@@ -1572,6 +1572,67 @@ MAP_OBJECTS.extend([
     {"type": "spike", "x": 8500, "y": 340, "w": 30, "h": 30},
 ])
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+# ----------------------------------------------------
+# 맵 오브젝트 (비행선 포탈 진입 난이도 완화 적용)
+# ----------------------------------------------------
+MAP_OBJECTS = [
+    # [1구간: 큐브 구간 - 초반 적응]
+    {"type": "spike", "x": 500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 530, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 800, "y": 310, "w": 60, "h": 60},
+    {"type": "spike", "x": 815, "y": 280, "w": 30, "h": 30},
+    {"type": "spike", "x": 1150, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 1450, "y": 280, "w": 90, "h": 90},
+    # 포탈 직전 여유 공간 확보 (가시 위치를 더 뒤로 이동)
+    {"type": "spike", "x": 1700, "y": 340, "w": 30, "h": 30},
+
+    # [포탈 1: 비행선 포탈] -> 가볍게 점프해서 진입 가능하도록 y: 290으로 하향 조정
+    {"type": "portal_ship", "x": 2000, "y": 290, "w": 40, "h": 90},
+]
+
+# [2구간: 비행기 전용 천장/바닥 가시 배치 (2000px ~ 4400px)]
+for x_pos in range(2000, 4400, 30):
+    MAP_OBJECTS.append({"type": "spike_down", "x": x_pos, "y": 40, "w": 30, "h": 30})
+    MAP_OBJECTS.append({"type": "spike", "x": x_pos, "y": 340, "w": 30, "h": 30})
+
+# 비행기 구간 내부 장애물
+MAP_OBJECTS.extend([
+    {"type": "block", "x": 2500, "y": 180, "w": 90, "h": 40},
+    {"type": "block", "x": 3000, "y": 220, "w": 90, "h": 40},
+    {"type": "block", "x": 3500, "y": 150, "w": 90, "h": 40},
+    {"type": "block", "x": 3900, "y": 240, "w": 90, "h": 40},
+
+    # [포탈 2: 거미 포탈]
+    {"type": "portal_spider", "x": 4400, "y": 300, "w": 50, "h": 70},
+
+    # [3구간: 거미 구간]
+    {"type": "spike", "x": 4700, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4730, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5100, "y": 40, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5130, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 5500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5900, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 6200, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 6230, "y": 340, "w": 30, "h": 30},
+
+    # [포탈 3: 큐브 복귀 포탈]
+    {"type": "portal_cube", "x": 6600, "y": 100, "w": 50, "h": 70},
+
+    # [4구간: 최종 피날레]
+    {"type": "block", "x": 7000, "y": 310, "w": 60, "h": 60},
+    {"type": "spike", "x": 7300, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 7330, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 7360, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 7700, "y": 280, "w": 90, "h": 90},
+    {"type": "spike", "x": 8100, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 8130, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 8500, "y": 340, "w": 30, "h": 30},
+])
+
 map_json = json.dumps(MAP_OBJECTS)
 FINISH_X = 9000
 
@@ -1809,19 +1870,17 @@ game_html = f"""
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
-                // 포탈 통과 처리
                 if (obj.type.startsWith("portal_")) {{
                     if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
                         if (obj.type === "portal_ship") player.mode = "ship";
                         else if (obj.type === "portal_cube") {{ 
                             player.mode = "cube"; 
                             player.gravityDir = 1; 
-                            player.vy = 0; // 거미에서 큐브 변환 시 급락으로 인한 사망 버그 완화
+                            player.vy = 0;
                         }}
                         else if (obj.type === "portal_spider") player.mode = "spider";
                     }}
 
-                    // 포탈 X축 위아래 부딪히면 죽는 가시벽 처리
                     if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
                         if (player.y < obj.y || player.y + player.size > obj.y + obj.h) {{
                             die();
@@ -1829,7 +1888,6 @@ game_html = f"""
                     }}
                 }}
 
-                // 가시 충돌 판정 (아래향 가시 포함)
                 if (obj.type === "spike" || obj.type === "spike_down") {{
                     const margin = 5;
                     if (player.x + player.size - margin > obj.x + margin &&
