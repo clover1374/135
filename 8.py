@@ -1633,6 +1633,64 @@ MAP_OBJECTS.extend([
     {"type": "spike", "x": 8500, "y": 340, "w": 30, "h": 30},
 ])
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+# ----------------------------------------------------
+# 맵 오브젝트 생성
+# ----------------------------------------------------
+MAP_OBJECTS = [
+    # [1구간: 큐브 구간 - 초반 적응]
+    {"type": "spike", "x": 500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 530, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 800, "y": 310, "w": 60, "h": 60},
+    {"type": "spike", "x": 815, "y": 280, "w": 30, "h": 30},
+    {"type": "spike", "x": 1150, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 1450, "y": 280, "w": 90, "h": 90},
+
+    # [포탈 1: 비행선 포탈] -> y: 280 (점프 진입에 최적화)
+    {"type": "portal_ship", "x": 2000, "y": 280, "w": 40, "h": 90},
+]
+
+# [2구간: 비행기 전용 가시 배치]
+# 포탈 직후 안전지대(2000px ~ 2300px)는 가시를 설치하지 않고 진입 후 착륙/비행 여유 제공
+for x_pos in range(2300, 4400, 30):
+    MAP_OBJECTS.append({"type": "spike_down", "x": x_pos, "y": 40, "w": 30, "h": 30})
+    MAP_OBJECTS.append({"type": "spike", "x": x_pos, "y": 340, "w": 30, "h": 30})
+
+# 비행기 구간 내부 장애물
+MAP_OBJECTS.extend([
+    {"type": "block", "x": 2700, "y": 180, "w": 90, "h": 40},
+    {"type": "block", "x": 3200, "y": 220, "w": 90, "h": 40},
+    {"type": "block", "x": 3700, "y": 150, "w": 90, "h": 40},
+
+    # [포탈 2: 거미 포탈]
+    {"type": "portal_spider", "x": 4400, "y": 300, "w": 50, "h": 70},
+
+    # [3구간: 거미 구간]
+    {"type": "spike", "x": 4700, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4730, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5100, "y": 40, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5130, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 5500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5900, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 6200, "y": 340, "w": 30, "h": 30},
+
+    # [포탈 3: 큐브 복귀 포탈]
+    {"type": "portal_cube", "x": 6600, "y": 100, "w": 50, "h": 70},
+
+    # [4구간: 최종 피날레]
+    {"type": "block", "x": 7000, "y": 310, "w": 60, "h": 60},
+    {"type": "spike", "x": 7300, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 7330, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 7360, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 7700, "y": 280, "w": 90, "h": 90},
+    {"type": "spike", "x": 8100, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 8130, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 8500, "y": 340, "w": 30, "h": 30},
+])
+
 map_json = json.dumps(MAP_OBJECTS)
 FINISH_X = 9000
 
@@ -1872,7 +1930,10 @@ game_html = f"""
 
                 if (obj.type.startsWith("portal_")) {{
                     if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
-                        if (obj.type === "portal_ship") player.mode = "ship";
+                        if (obj.type === "portal_ship") {{
+                            player.mode = "ship";
+                            player.vy = 0; // 포탈 통과 시 수직 속도 초기화로 안정적 비행 시작
+                        }}
                         else if (obj.type === "portal_cube") {{ 
                             player.mode = "cube"; 
                             player.gravityDir = 1; 
