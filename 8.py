@@ -1749,6 +1749,63 @@ MAP_OBJECTS.extend([
     {"type": "spike", "x": 8500, "y": 340, "w": 30, "h": 30},
 ])
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+# ----------------------------------------------------
+# 맵 오브젝트 생성
+# ----------------------------------------------------
+MAP_OBJECTS = [
+    # [1구간: 큐브 구간]
+    {"type": "spike", "x": 500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 530, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 800, "y": 310, "w": 60, "h": 60},
+    {"type": "spike", "x": 815, "y": 280, "w": 30, "h": 30},
+    {"type": "spike", "x": 1150, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 1450, "y": 280, "w": 90, "h": 90},
+
+    # [포탈 1: 비행선 포탈] - 통과 폭을 넓힘(w: 60)
+    {"type": "portal_ship", "x": 2000, "y": 250, "w": 60, "h": 120},
+]
+
+# [2구간: 비행기 전용 천장/바닥 가시 배치]
+for x_pos in range(2300, 4400, 30):
+    MAP_OBJECTS.append({"type": "spike_down", "x": x_pos, "y": 40, "w": 30, "h": 30})
+    MAP_OBJECTS.append({"type": "spike", "x": x_pos, "y": 340, "w": 30, "h": 30})
+
+# 비행기 구간 장애물
+MAP_OBJECTS.extend([
+    {"type": "block", "x": 2700, "y": 180, "w": 90, "h": 40},
+    {"type": "block", "x": 3200, "y": 220, "w": 90, "h": 40},
+    {"type": "block", "x": 3700, "y": 150, "w": 90, "h": 40},
+
+    # [포탈 2: 거미 포탈]
+    {"type": "portal_spider", "x": 4400, "y": 250, "w": 60, "h": 120},
+
+    # [3구간: 거미 구간]
+    {"type": "spike", "x": 4700, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4730, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5100, "y": 40, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5130, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 5500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 5900, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 6200, "y": 340, "w": 30, "h": 30},
+
+    # [포탈 3: 큐브 복귀 포탈]
+    {"type": "portal_cube", "x": 6600, "y": 250, "w": 60, "h": 120},
+
+    # [4구간: 피날레]
+    {"type": "block", "x": 7000, "y": 310, "w": 60, "h": 60},
+    {"type": "spike", "x": 7300, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 7330, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 7360, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 7700, "y": 280, "w": 90, "h": 90},
+    {"type": "spike", "x": 8100, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 8130, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 8500, "y": 340, "w": 30, "h": 30},
+])
+
 map_json = json.dumps(MAP_OBJECTS)
 FINISH_X = 9000
 
@@ -1962,6 +2019,7 @@ game_html = f"""
                 if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
             }}
 
+            // 물리 업데이트
             if (player.mode === "cube") {{
                 player.vy += gravity * player.gravityDir;
                 if (!player.isGrounded) player.rotation += 8 * player.gravityDir;
@@ -1983,26 +2041,26 @@ game_html = f"""
             if (player.y >= 340) {{ player.y = 340; player.vy = 0; player.isGrounded = true; }}
             if (player.y <= 40) {{ player.y = 40; player.vy = 0; player.isGrounded = true; }}
 
+            // 장애물 및 포탈 검사 (충돌 판정 개선)
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
+                // [포탈 충돌 판정] AABB + 넓은 x 진입 감지
                 if (obj.type.startsWith("portal_")) {{
-                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
-                        if (obj.type === "portal_ship") {{
+                    if (player.x + player.size >= obj.x && player.x <= obj.x + obj.w) {{
+                        if (obj.type === "portal_ship" && player.mode !== "ship") {{
                             player.mode = "ship";
-                            player.vy = 0; // 포탈 통과 시 수직 속도 초기화로 안정적 비행 시작
+                            player.vy = 0;
+                            player.rotation = 0;
                         }}
-                        else if (obj.type === "portal_cube") {{ 
+                        else if (obj.type === "portal_cube" && player.mode !== "cube") {{ 
                             player.mode = "cube"; 
                             player.gravityDir = 1; 
                             player.vy = 0;
                         }}
-                        else if (obj.type === "portal_spider") player.mode = "spider";
-                    }}
-
-                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
-                        if (player.y < obj.y || player.y + player.size > obj.y + obj.h) {{
-                            die();
+                        else if (obj.type === "portal_spider" && player.mode !== "spider") {{
+                            player.mode = "spider";
+                            player.vy = 0;
                         }}
                     }}
                 }}
@@ -2129,22 +2187,13 @@ game_html = f"""
                         if (obj.type === "portal_ship") color = "#ff00d2";
                         else if (obj.type === "portal_spider") color = "#a600ff";
 
-                        ctx.fillStyle = "rgba(255, 42, 109, 0.45)";
-                        ctx.strokeStyle = "#ff2a6d"; ctx.lineWidth = 2;
-
-                        if (obj.y > 40) {{
-                            ctx.fillRect(sx, 40, obj.w, obj.y - 40);
-                            ctx.strokeRect(sx, 40, obj.w, obj.y - 40);
-                        }}
-                        if (obj.y + obj.h < 370) {{
-                            ctx.fillRect(sx, obj.y + obj.h, obj.w, 370 - (obj.y + obj.h));
-                            ctx.strokeRect(sx, obj.y + obj.h, obj.w, 370 - (obj.y + obj.h));
-                        }}
-
-                        ctx.strokeStyle = color; ctx.lineWidth = 4;
+                        ctx.strokeStyle = color; ctx.lineWidth = 5;
                         ctx.beginPath();
                         ctx.ellipse(sx + obj.w / 2, obj.y + obj.h / 2, obj.w / 2, obj.h / 2 + Math.sin(portalAnim) * 4, 0, 0, Math.PI * 2);
                         ctx.stroke();
+
+                        ctx.fillStyle = color;
+                        ctx.fillRect(sx + obj.w / 2 - 2, obj.y, 4, obj.h);
                     }}
                 }}
             }}
