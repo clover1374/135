@@ -1405,6 +1405,23 @@ MAP_OBJECTS = [
     {"type": "spike", "x": 4500, "y": 340, "w": 30, "h": 30},
 ]
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
+# 기본 맵 데이터 예시 (기존 MAP_OBJECTS가 있다면 해당 객체를 사용하세요)
+MAP_OBJECTS = [
+    # 바닥 장애물 예시
+    {"type": "spike", "x": 600, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 900, "y": 310, "w": 60, "h": 60},
+    # 비행 포탈
+    {"type": "portal_ship", "x": 1400, "y": 200, "w": 40, "h": 80},
+    # 거미 포탈
+    {"type": "portal_spider", "x": 2600, "y": 200, "w": 40, "h": 80},
+    # 큐브 포탈
+    {"type": "portal_cube", "x": 3800, "y": 200, "w": 40, "h": 80},
+]
+
 map_json = json.dumps(MAP_OBJECTS)
 FINISH_X = 5000
 
@@ -1441,7 +1458,7 @@ game_html = f"""
 </head>
 <body tabindex="0">
     <canvas id="gameCanvas" width="800" height="450"></canvas>
-    <div class="info">💡 [클릭 / 스페이스바 / 위쪽 화살표]로 점프 및 비행 (리셋: R)</div>
+    <div class="info">💡 [클릭 / 스페이스바 / 위쪽 화살표] 점프 · 비행 · 거미 반전 (R: 리셋)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -1456,6 +1473,7 @@ game_html = f"""
         let player = {{
             x: 100, y: 340, size: 30, vy: 0, rotation: 0,
             mode: "cube", isGrounded: true, isDead: false, isWin: false,
+            gravityDir: 1, // 1: 정상, -1: 거미 반전
             trail: [], deathPercent: 0, suckAnim: false, suckScale: 1.0, suckAngle: 0
         }};
 
@@ -1463,16 +1481,47 @@ game_html = f"""
         let particles = [];
         let portalAnim = 0;
         
-        // 이동 속도를 3.0으로 낮춰 완벽한 반응 시간 확보
-        const speedX = 3.0;
-        const gravity = 0.65;
-        const jumpForce = -11.5;
+        // 답답하지 않고 너무 빠르지도 않은 적정 속도 설정
+        const speedX = 5.2;
+        const gravity = 0.85;
+        const jumpForce = -13.0;
 
         function tryJump() {{
-            if (!player.isDead && !player.isWin && player.mode === "cube" && player.isGrounded) {{
-                player.vy = jumpForce;
+            if (player.isDead || player.isWin) return;
+
+            if (player.mode === "cube" && player.isGrounded) {{
+                player.vy = jumpForce * player.gravityDir;
                 player.isGrounded = false;
                 addJumpParticles();
+            }} else if (player.mode === "spider") {{
+                // 거미 모드: 클릭 시 반대편 천장/바닥으로 즉시 순간이동
+                teleportSpider();
+            }}
+        }}
+
+        function teleportSpider() {{
+            const topBoundary = 40;
+            const bottomBoundary = 340;
+            
+            if (player.gravityDir === 1) {{
+                player.y = topBoundary;
+                player.gravityDir = -1;
+            }} else {{
+                player.y = bottomBoundary;
+                player.gravityDir = 1;
+            }}
+            player.vy = 0;
+            player.isGrounded = true;
+
+            // 순간이동 이펙트
+            for (let i = 0; i < 12; i++) {{
+                particles.push({{
+                    x: player.x + 15, y: player.y + 15,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    size: Math.random() * 4 + 2,
+                    color: "#a600ff", alpha: 1.0
+                }});
             }}
         }}
 
@@ -1486,8 +1535,9 @@ game_html = f"""
 
         function reset() {{
             player.x = 100; player.y = 340; player.vy = 0; player.rotation = 0;
-            player.mode = "cube"; player.isGrounded = true; player.isDead = false; player.isWin = false;
-            player.trail = []; particles = []; isHoldingJump = false; player.deathPercent = 0;
+            player.mode = "cube"; player.gravityDir = 1; player.isGrounded = true; 
+            player.isDead = false; player.isWin = false; player.trail = []; 
+            particles = []; isHoldingJump = false; player.deathPercent = 0;
             player.suckAnim = false; player.suckScale = 1.0; player.suckAngle = 0;
         }}
 
@@ -1528,9 +1578,9 @@ game_html = f"""
         function addJumpParticles() {{
             for (let i = 0; i < 6; i++) {{
                 particles.push({{
-                    x: player.x + 15, y: player.y + 30,
+                    x: player.x + 15, y: player.y + (player.gravityDir === 1 ? 30 : 0),
                     vx: (Math.random() - 0.5) * 3,
-                    vy: Math.random() * 2 + 1,
+                    vy: Math.random() * 2 * player.gravityDir,
                     size: Math.random() * 3 + 2,
                     color: "#00ffc8", alpha: 1.0
                 }});
@@ -1538,11 +1588,11 @@ game_html = f"""
         }}
 
         function addExplosionParticles() {{
-            for (let i = 0; i < 30; i++) {{
+            for (let i = 0; i < 35; i++) {{
                 particles.push({{
                     x: player.x + 15, y: player.y + 15,
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8,
+                    vx: (Math.random() - 0.5) * 9,
+                    vy: (Math.random() - 0.5) * 9,
                     size: Math.random() * 5 + 2,
                     color: Math.random() > 0.5 ? "#ff2a6d" : "#ffae00",
                     alpha: 1.0
@@ -1559,13 +1609,14 @@ game_html = f"""
                 if (p.alpha <= 0) particles.splice(i, 1);
             }}
 
+            // 엔딩 화이트홀 빨려들어가는 연출
             if (player.suckAnim) {{
-                player.suckScale -= 0.025;
-                player.suckAngle += 20;
-                let targetX = finishX + 25;
-                let targetY = 200;
-                player.x += (targetX - player.x) * 0.12;
-                player.y += (targetY - player.y) * 0.12;
+                player.suckScale -= 0.02;
+                player.suckAngle += 15;
+                let targetX = finishX + 20;
+                let targetY = 225;
+                player.x += (targetX - player.x) * 0.1;
+                player.y += (targetY - player.y) * 0.1;
 
                 if (player.suckScale <= 0) {{
                     player.suckScale = 0;
@@ -1588,30 +1639,45 @@ game_html = f"""
                 if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
             }}
 
-            // 모드별 조작감 부드럽게 조정
+            // 모드별 운동 메커니즘
             if (player.mode === "cube") {{
-                player.vy += gravity;
-                if (!player.isGrounded) player.rotation += 6;
+                player.vy += gravity * player.gravityDir;
+                if (!player.isGrounded) player.rotation += 8 * player.gravityDir;
                 else player.rotation = Math.round(player.rotation / 90) * 90;
             }} else if (player.mode === "ship") {{
-                if (isHoldingJump) player.vy -= 0.45;
-                else player.vy += 0.40;
-                player.vy = Math.max(-4.5, Math.min(4.5, player.vy));
-                player.rotation = player.vy * 3.5;
+                if (isHoldingJump) player.vy -= 0.55;
+                else player.vy += 0.50;
+                player.vy = Math.max(-6.0, Math.min(6.0, player.vy));
+                // 회전각 부드러운 보정(Lerp) 적용
+                let targetRot = player.vy * 5;
+                player.rotation += (targetRot - player.rotation) * 0.2;
+            }} else if (player.mode === "spider") {{
+                player.vy = 0;
+                player.rotation = player.gravityDir === -1 ? 180 : 0;
             }}
 
             player.y += player.vy;
             player.isGrounded = false;
 
+            // 기본 바닥 / 천장 충돌
             if (player.y >= 340) {{ player.y = 340; player.vy = 0; player.isGrounded = true; }}
-            if (player.y <= 10) {{ player.y = 10; player.vy = 0; }}
+            if (player.y <= 40) {{ player.y = 40; player.vy = 0; player.isGrounded = true; }}
 
-            // 판정 (판정 범위를 다소 넉넉하게 수정)
+            // 장애물 및 포탈 강제 통과 로직
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
 
+                // 포탈 충돌
+                if (obj.type.startsWith("portal_")) {{
+                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
+                        if (obj.type === "portal_ship") player.mode = "ship";
+                        else if (obj.type === "portal_cube") {{ player.mode = "cube"; player.gravityDir = 1; }}
+                        else if (obj.type === "portal_spider") player.mode = "spider";
+                    }}
+                }}
+
                 if (obj.type === "spike") {{
-                    const margin = 8;
+                    const margin = 6;
                     if (player.x + player.size - margin > obj.x + margin &&
                         player.x + margin < obj.x + obj.w - margin &&
                         player.y + player.size - margin > obj.y + margin &&
@@ -1622,21 +1688,15 @@ game_html = f"""
                         let currentBottom = player.y + player.size;
                         let previousBottom = prevY + player.size;
 
-                        if (previousBottom <= obj.y + 20 && currentBottom >= obj.y && player.vy >= 0) {{
+                        if (previousBottom <= obj.y + 15 && currentBottom >= obj.y && player.vy >= 0) {{
                             player.y = obj.y - player.size; player.vy = 0; player.isGrounded = true;
-                        }} else if (prevY >= obj.y + obj.h - 12 && player.y <= obj.y + obj.h && player.vy < 0) {{
+                        }} else if (prevY >= obj.y + obj.h - 15 && player.y <= obj.y + obj.h && player.vy < 0) {{
                             if (player.mode === "ship") {{ player.y = obj.y + obj.h; player.vy = 0; }}
                             else die();
-                        }} else if (player.y + player.size > obj.y + 10 && player.y < obj.y + obj.h - 6) {{
+                        }} else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 8) {{
                             die();
                         }}
                     }}
-                }} 
-                else if (obj.type === "portal_ship" && player.mode !== "ship") {{
-                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) player.mode = "ship";
-                }} 
-                else if (obj.type === "portal_cube" && player.mode !== "cube") {{
-                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) player.mode = "cube";
                 }}
             }}
 
@@ -1659,20 +1719,36 @@ game_html = f"""
                 ctx.fillStyle = "#ffffff"; ctx.fillRect(-half + 7, -half + 8, 5, 7); ctx.fillRect(-half + 18, -half + 8, 5, 7);
                 ctx.fillStyle = "#000000"; ctx.fillRect(-half + 9, -half + 10, 3, 4); ctx.fillRect(-half + 20, -half + 10, 3, 4);
             }} else if (mode === "ship") {{
-                ctx.fillStyle = "#ff00d2"; ctx.beginPath();
-                ctx.moveTo(-half - 10, 10); 
-                ctx.lineTo(half + 14, 6); 
-                ctx.lineTo(half + 4, half + 10); 
-                ctx.lineTo(-half - 8, half + 10);
-                ctx.closePath(); ctx.fill();
-                ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5; ctx.stroke();
+                // 개선된 날렵한 디자인의 비행선
+                ctx.fillStyle = "#ff00d2";
+                ctx.beginPath();
+                ctx.moveTo(-half - 5, 0);
+                ctx.lineTo(half + 10, -half + 5);
+                ctx.lineTo(half + 15, 0);
+                ctx.lineTo(half + 10, half - 5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.stroke();
 
-                let miniSize = 18;
-                let cubeY = -half - 2;
-                ctx.fillStyle = "#00ffc8"; ctx.fillRect(-miniSize/2, cubeY, miniSize, miniSize);
-                ctx.fillStyle = "#090915"; ctx.fillRect(-miniSize/2 + 2, cubeY + 2, miniSize - 4, miniSize - 4);
-                ctx.fillStyle = "#00ffc8"; ctx.fillRect(-miniSize/2 + 4, cubeY + 4, miniSize - 8, miniSize - 8);
-                ctx.fillStyle = "#ffffff"; ctx.fillRect(-miniSize/2 + 3, cubeY + 4, 3, 4); ctx.fillRect(-miniSize/2 + 10, cubeY + 4, 3, 4);
+                // 조종석 큐브
+                let miniSize = 14;
+                ctx.fillStyle = "#00ffc8"; 
+                ctx.fillRect(-miniSize/2, -miniSize/2 - 2, miniSize, miniSize);
+            }} else if (mode === "spider") {{
+                // 거미 형태
+                ctx.fillStyle = "#a600ff";
+                ctx.fillRect(-half, -half + 5, size, size - 10);
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(-half + 5, -half + 8, 6, 6);
+                ctx.fillRect(half - 11, -half + 8, 6, 6);
+                // 다리 표현
+                ctx.strokeStyle = "#a600ff"; ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(-half, -half); ctx.lineTo(-half - 6, -half - 6);
+                ctx.moveTo(half, -half); ctx.lineTo(half + 6, -half - 6);
+                ctx.moveTo(-half, half); ctx.lineTo(-half - 6, half + 6);
+                ctx.moveTo(half, half); ctx.lineTo(half + 6, half + 6);
+                ctx.stroke();
             }}
             ctx.restore();
         }}
@@ -1681,6 +1757,7 @@ game_html = f"""
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const camX = player.x - 150;
 
+            // 배경 격자
             ctx.strokeStyle = "rgba(0, 255, 200, 0.05)";
             ctx.lineWidth = 1;
             for (let i = 0; i < canvas.width; i += 40) {{
@@ -1688,17 +1765,23 @@ game_html = f"""
                 ctx.beginPath(); ctx.moveTo(i - offset, 0); ctx.lineTo(i - offset, canvas.height); ctx.stroke();
             }}
 
+            // 잔상
             for (let t of player.trail) {{
-                drawPlayer(t.x - camX, t.y, player.size, t.rotation, t.mode, 1.0, t.alpha * 0.4);
+                drawPlayer(t.x - camX, t.y, player.size, t.rotation, t.mode, 1.0, t.alpha * 0.3);
             }}
 
-            ctx.fillStyle = "#05050b"; ctx.fillRect(0, 370, canvas.width, 80);
+            // 바닥 및 천장
+            ctx.fillStyle = "#05050b"; 
+            ctx.fillRect(0, 370, canvas.width, 80);
+            ctx.fillRect(0, 0, canvas.width, 40);
             ctx.strokeStyle = "#00ffc8"; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(canvas.width, 40); ctx.stroke();
 
+            // 맵 오브젝트 및 포탈 강제 벽 연출
             for (let obj of mapObjects) {{
                 let sx = obj.x - camX;
-                if (sx >= -60 && sx <= canvas.width + 60) {{
+                if (sx >= -100 && sx <= canvas.width + 100) {{
                     if (obj.type === "block") {{
                         ctx.fillStyle = "#18182e"; ctx.fillRect(sx, obj.y, obj.w, obj.h);
                         ctx.strokeStyle = "#00d2ff"; ctx.lineWidth = 2; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
@@ -1707,8 +1790,16 @@ game_html = f"""
                         ctx.moveTo(sx, obj.y + obj.h); ctx.lineTo(sx + obj.w / 2, obj.y); ctx.lineTo(sx + obj.w, obj.y + obj.h);
                         ctx.closePath(); ctx.fill();
                         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.stroke();
-                    }} else if (obj.type === "portal_ship" || obj.type === "portal_cube") {{
-                        let color = obj.type === "portal_ship" ? "#ff00d2" : "#00ffc8";
+                    }} else if (obj.type.startsWith("portal_")) {{
+                        let color = "#00ffc8";
+                        if (obj.type === "portal_ship") color = "#ff00d2";
+                        else if (obj.type === "portal_spider") color = "#a600ff";
+
+                        // 포탈 주변을 제외한 Y축 위아래를 가려 강제 통과하도록 벽을 표시
+                        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+                        ctx.fillRect(sx, 40, obj.w, obj.y - 40);
+                        ctx.fillRect(sx, obj.y + obj.h, obj.w, 370 - (obj.y + obj.h));
+
                         ctx.strokeStyle = color; ctx.lineWidth = 4;
                         ctx.beginPath();
                         ctx.ellipse(sx + obj.w / 2, obj.y + obj.h / 2, obj.w / 2, obj.h / 2 + Math.sin(portalAnim) * 4, 0, 0, Math.PI * 2);
@@ -1717,6 +1808,7 @@ game_html = f"""
                 }}
             }}
 
+            // 파티클
             for (let p of particles) {{
                 ctx.save();
                 ctx.globalAlpha = p.alpha;
@@ -1725,22 +1817,35 @@ game_html = f"""
                 ctx.restore();
             }}
 
+            // 엔딩 Y축 전체 화이트홀 연출
+            let finishSx = finishX - camX;
+            if (finishSx <= canvas.width + 100) {{
+                let gradient = ctx.createLinearGradient(finishSx - 40, 0, finishSx + 40, 0);
+                gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+                gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.9)");
+                gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+                ctx.fillStyle = gradient;
+                ctx.fillRect(finishSx - 40, 0, 80, canvas.height);
+            }}
+
+            // 플레이어 그리기
             if (!player.isDead && player.suckScale > 0) {{
                 drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, player.suckScale);
             }}
 
+            // 진척도 UI
             let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
             ctx.fillStyle = "#ffffff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "left";
-            ctx.fillText(progress + "%", 20, 35);
+            ctx.fillText(progress + "%", 20, 65);
 
             if (player.isDead) {{
                 ctx.fillStyle = "#ff2a6d"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center";
-                ctx.fillText("💥 GAME OVER (" + player.deathPercent + "%)", canvas.width / 2, 190);
+                ctx.fillText("💥 GAME OVER (" + player.deathPercent + "%)", canvas.width / 2, 210);
                 ctx.font = "15px sans-serif"; ctx.fillStyle = "#bbbbdd";
-                ctx.fillText("화면 클릭 또는 'R' 키를 눌러 재시작", canvas.width / 2, 230);
+                ctx.fillText("화면 클릭 또는 'R' 키를 눌러 재시작", canvas.width / 2, 250);
             }} else if (player.isWin) {{
                 ctx.fillStyle = "#ffea00"; ctx.font = "bold 32px sans-serif"; ctx.textAlign = "center";
-                ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 200);
+                ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 220);
             }}
         }}
 
