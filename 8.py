@@ -2227,8 +2227,72 @@ MAP_OBJECTS.extend([
     {"type": "spike", "x": 8500, "y": 340, "w": 30, "h": 30},
 ])
 
-map_json = json.dumps(MAP_OBJECTS)
-FINISH_X = 9000
+import streamlit as st
+import streamlit.components.v1 as components
+import json
+
+st.set_page_config(page_title="지오메트리 대쉬", layout="wide")
+
+# 사이드바에서 스테이지 선택
+st.sidebar.title("🎮 스테이지 선택")
+stage = st.sidebar.radio("플레이할 단계를 고르세요:", ["1단계 (Normal)", "2단계 (Hard)"])
+
+# 1단계 맵 (기본 난이도)
+MAP_STAGE_1 = [
+    {"type": "spike", "x": 600, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 1000, "y": 310, "w": 40, "h": 30},
+    {"type": "portal_ship", "x": 1500, "y": 200, "w": 40, "h": 80},
+    {"type": "block", "x": 2000, "y": 250, "w": 40, "h": 120},
+    {"type": "portal_cube", "x": 2800, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 3200, "y": 340, "w": 30, "h": 30}
+]
+
+# 2단계 맵 (난이도 상향 - 2단/3단 가시, 좁은 비행 터널, 빡빡한 거미 반전)
+MAP_STAGE_2 = [
+    {"type": "spike", "x": 500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 800, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 830, "y": 340, "w": 30, "h": 30}, # 2단 가시
+    
+    # 비행 모드 진입
+    {"type": "portal_ship", "x": 1200, "y": 200, "w": 40, "h": 80},
+    {"type": "block", "x": 1500, "y": 280, "w": 60, "h": 90},
+    {"type": "spike_down", "x": 1515, "y": 40, "w": 30, "h": 30}, # 위쪽 가시 압박
+    {"type": "block", "x": 1900, "y": 40, "w": 60, "h": 150}, # 아래로 피해야 하는 기둥
+    {"type": "spike", "x": 1915, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 2400, "y": 180, "w": 40, "h": 190}, # 좁은 틈
+    
+    # 거미 모드 진입
+    {"type": "portal_spider", "x": 2800, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 3100, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 3400, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 3700, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3730, "y": 340, "w": 30, "h": 30}, # 바닥 2단 가시
+    
+    # 마지막 큐브 3단 가시
+    {"type": "portal_cube", "x": 4200, "y": 150, "w": 40, "h": 80},
+    {"type": "block", "x": 4500, "y": 310, "w": 40, "h": 30},
+    {"type": "spike", "x": 4800, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4830, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4860, "y": 340, "w": 30, "h": 30}, # 마의 3단 가시
+]
+
+# 스테이지에 따른 테마 색상 및 데이터 설정
+if "1단계" in stage:
+    map_objects = MAP_STAGE_1
+    finish_x = 4000
+    main_color = "#00ffc8"
+    bg_top = "#090915"
+    bg_bottom = "#14142e"
+    block_stroke = "#00d2ff"
+else:
+    map_objects = MAP_STAGE_2
+    finish_x = 5500
+    main_color = "#39ff14"  # 네온 초록
+    bg_top = "#051205"      # 짙은 초록
+    bg_bottom = "#102a10"
+    block_stroke = "#22cc11"
+
+map_json = json.dumps(map_objects)
 
 game_html = f"""
 <!DOCTYPE html>
@@ -2236,29 +2300,17 @@ game_html = f"""
 <head>
     <style>
         body {{ 
-            margin: 0; 
-            background-color: #080810; 
-            text-align: center; 
-            color: white; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            overflow: hidden; 
-            user-select: none; 
+            margin: 0; background-color: #080810; text-align: center; color: white; 
+            font-family: 'Segoe UI', sans-serif; overflow: hidden; user-select: none; 
         }}
         canvas {{ 
-            border: 2px solid #00ffc8; 
-            box-shadow: 0 0 25px rgba(0, 255, 200, 0.4); 
-            border-radius: 8px; 
-            display: block; 
-            margin: 10px auto; 
-            background: linear-gradient(to bottom, #090915, #14142e); 
+            border: 2px solid {main_color}; 
+            box-shadow: 0 0 25px {main_color}66; 
+            border-radius: 8px; display: block; margin: 10px auto; 
+            background: linear-gradient(to bottom, {bg_top}, {bg_bottom}); 
             cursor: pointer; 
         }}
-        .info {{ 
-            font-size: 14px; 
-            color: #9d9dbf; 
-            margin-top: 8px; 
-            font-weight: 600; 
-        }}
+        .info {{ font-size: 14px; color: #9d9dbf; margin-top: 8px; font-weight: 600; }}
     </style>
 </head>
 <body tabindex="0">
@@ -2268,31 +2320,22 @@ game_html = f"""
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
-
-        window.focus();
-        document.body.focus();
+        window.focus(); document.body.focus();
 
         const mapObjects = {map_json};
-        const finishX = {FINISH_X};
+        const finishX = {finish_x};
 
         let player = {{
             x: 100, y: 340, size: 30, vy: 0, rotation: 0,
             mode: "cube", isGrounded: true, isDead: false, isWin: false,
-            gravityDir: 1,
-            trail: [], deathPercent: 0, suckAnim: false, suckScale: 1.0, suckAngle: 0
+            gravityDir: 1, trail: [], deathPercent: 0, suckAnim: false, suckScale: 1.0, suckAngle: 0
         }};
 
-        let isHoldingJump = false;
-        let particles = [];
-        let portalAnim = 0;
-        
-        const speedX = 5.5;
-        const gravity = 0.9;
-        const jumpForce = -13.5;
+        let isHoldingJump = false; let particles = []; let portalAnim = 0;
+        const speedX = 5.5; const gravity = 0.9; const jumpForce = -13.5;
 
         function tryJump() {{
             if (player.isDead || player.isWin) return;
-
             if (player.mode === "cube" && player.isGrounded) {{
                 player.vy = jumpForce * player.gravityDir;
                 player.isGrounded = false;
@@ -2303,35 +2346,24 @@ game_html = f"""
         }}
 
         function teleportSpider() {{
-            const topBoundary = 40;
-            const bottomBoundary = 340;
-            
-            if (player.gravityDir === 1) {{
-                player.y = topBoundary;
-                player.gravityDir = -1;
-            }} else {{
-                player.y = bottomBoundary;
-                player.gravityDir = 1;
-            }}
-            player.vy = 0;
-            player.isGrounded = true;
-
-            for (let i = 0; i < 12; i++) {{
-                particles.push({{
-                    x: player.x + 15, y: player.y + 15,
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: (Math.random() - 0.5) * 6,
-                    size: Math.random() * 4 + 2,
-                    color: "#a600ff", alpha: 1.0
-                }});
-            }}
+            const topBoundary = 40; const bottomBoundary = 340;
+            if (player.gravityDir === 1) {{ player.y = topBoundary; player.gravityDir = -1; }} 
+            else {{ player.y = bottomBoundary; player.gravityDir = 1; }}
+            player.vy = 0; player.isGrounded = true;
+            for (let i = 0; i < 12; i++) particles.push({{
+                x: player.x + 15, y: player.y + 15, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                size: Math.random() * 4 + 2, color: "#a600ff", alpha: 1.0
+            }});
         }}
 
         function die() {{
             if (!player.isDead && !player.suckAnim) {{
                 player.isDead = true;
                 player.deathPercent = Math.min(100, Math.floor((player.x / finishX) * 100));
-                addExplosionParticles();
+                for (let i = 0; i < 35; i++) particles.push({{
+                    x: player.x + 15, y: player.y + 15, vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9,
+                    size: Math.random() * 5 + 2, color: Math.random() > 0.5 ? "#ff2a6d" : "{main_color}", alpha: 1.0
+                }});
             }}
         }}
 
@@ -2343,250 +2375,117 @@ game_html = f"""
             player.suckAnim = false; player.suckScale = 1.0; player.suckAngle = 0;
         }}
 
-        function handleInputStart() {{
-            window.focus();
-            if (player.isDead) {{
-                reset();
-            }} else {{
-                isHoldingJump = true;
-                tryJump();
-            }}
-        }}
-
-        function handleInputEnd() {{
-            isHoldingJump = false;
-        }}
+        function handleInputStart() {{ window.focus(); if (player.isDead) reset(); else {{ isHoldingJump = true; tryJump(); }} }}
+        function handleInputEnd() {{ isHoldingJump = false; }}
 
         window.addEventListener("keydown", (e) => {{
-            if (e.code === "Space" || e.code === "ArrowUp") {{
-                e.preventDefault();
-                if (!isHoldingJump) handleInputStart();
-            }}
+            if (e.code === "Space" || e.code === "ArrowUp") {{ e.preventDefault(); if (!isHoldingJump) handleInputStart(); }}
             if (e.code === "KeyR") reset();
         }});
-
-        window.addEventListener("keyup", (e) => {{
-            if (e.code === "Space" || e.code === "ArrowUp") {{
-                e.preventDefault();
-                handleInputEnd();
-            }}
-        }});
-
+        window.addEventListener("keyup", (e) => {{ if (e.code === "Space" || e.code === "ArrowUp") {{ e.preventDefault(); handleInputEnd(); }} }});
         canvas.addEventListener("mousedown", (e) => {{ e.preventDefault(); handleInputStart(); }});
         window.addEventListener("mouseup", (e) => {{ e.preventDefault(); handleInputEnd(); }});
-        canvas.addEventListener("touchstart", (e) => {{ e.preventDefault(); handleInputStart(); }});
-        window.addEventListener("touchend", (e) => {{ e.preventDefault(); handleInputEnd(); }});
-
+        
         function addJumpParticles() {{
-            for (let i = 0; i < 6; i++) {{
-                particles.push({{
-                    x: player.x + 15, y: player.y + (player.gravityDir === 1 ? 30 : 0),
-                    vx: (Math.random() - 0.5) * 3,
-                    vy: Math.random() * 2 * player.gravityDir,
-                    size: Math.random() * 3 + 2,
-                    color: "#00ffc8", alpha: 1.0
-                }});
-            }}
-        }}
-
-        function addExplosionParticles() {{
-            for (let i = 0; i < 35; i++) {{
-                particles.push({{
-                    x: player.x + 15, y: player.y + 15,
-                    vx: (Math.random() - 0.5) * 9,
-                    vy: (Math.random() - 0.5) * 9,
-                    size: Math.random() * 5 + 2,
-                    color: Math.random() > 0.5 ? "#ff2a6d" : "#ffae00",
-                    alpha: 1.0
-                }});
-            }}
+            for (let i = 0; i < 6; i++) particles.push({{
+                x: player.x + 15, y: player.y + (player.gravityDir === 1 ? 30 : 0),
+                vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2 * player.gravityDir,
+                size: Math.random() * 3 + 2, color: "{main_color}", alpha: 1.0
+            }});
         }}
 
         function update() {{
             portalAnim += 0.08;
-
             for (let i = particles.length - 1; i >= 0; i--) {{
-                let p = particles[i];
-                p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
+                let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
                 if (p.alpha <= 0) particles.splice(i, 1);
             }}
 
             if (player.suckAnim) {{
-                player.suckScale -= 0.02;
-                player.suckAngle += 15;
-                let targetX = finishX + 20;
-                let targetY = 225;
-                player.x += (targetX - player.x) * 0.1;
-                player.y += (targetY - player.y) * 0.1;
-
-                if (player.suckScale <= 0) {{
-                    player.suckScale = 0;
-                    player.suckAnim = false;
-                    player.isWin = true;
-                }}
+                player.suckScale -= 0.02; player.suckAngle += 15;
+                player.x += (finishX + 20 - player.x) * 0.1; player.y += (225 - player.y) * 0.1;
+                if (player.suckScale <= 0) {{ player.suckScale = 0; player.suckAnim = false; player.isWin = true; }}
                 return;
             }}
 
             if (player.isDead || player.isWin) return;
+            player.x += speedX; let prevY = player.y;
 
-            player.x += speedX;
-            let prevY = player.y;
-
-            if (Math.random() < 0.4) {{
-                player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, mode: player.mode, alpha: 0.5 }});
-            }}
+            if (Math.random() < 0.4) player.trail.push({{ x: player.x, y: player.y, rotation: player.rotation, mode: player.mode, alpha: 0.5 }});
             for (let i = player.trail.length - 1; i >= 0; i--) {{
-                player.trail[i].alpha -= 0.05;
-                if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
+                player.trail[i].alpha -= 0.05; if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
             }}
 
-            // 물리 업데이트
             if (player.mode === "cube") {{
                 player.vy += gravity * player.gravityDir;
-                if (!player.isGrounded) player.rotation += 8 * player.gravityDir;
-                else player.rotation = Math.round(player.rotation / 90) * 90;
+                if (!player.isGrounded) player.rotation += 8 * player.gravityDir; else player.rotation = Math.round(player.rotation / 90) * 90;
             }} else if (player.mode === "ship") {{
-                if (isHoldingJump) player.vy -= 0.58;
-                else player.vy += 0.52;
+                if (isHoldingJump) player.vy -= 0.58; else player.vy += 0.52;
                 player.vy = Math.max(-6.5, Math.min(6.5, player.vy));
-                let targetRot = player.vy * 4.5;
-                player.rotation += (targetRot - player.rotation) * 0.25;
-            }} else if (player.mode === "spider") {{
-                player.vy = 0;
-                player.rotation = player.gravityDir === -1 ? 180 : 0;
-            }}
+                player.rotation += (player.vy * 4.5 - player.rotation) * 0.25;
+            }} else if (player.mode === "spider") {{ player.vy = 0; player.rotation = player.gravityDir === -1 ? 180 : 0; }}
 
-            player.y += player.vy;
-            player.isGrounded = false;
-
+            player.y += player.vy; player.isGrounded = false;
             if (player.y >= 340) {{ player.y = 340; player.vy = 0; player.isGrounded = true; }}
             if (player.y <= 40) {{ player.y = 40; player.vy = 0; player.isGrounded = true; }}
 
-            // 장애물 및 포탈 검사
             for (let obj of mapObjects) {{
                 if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
-
-                // [포탈 충돌 판정]
-                if (obj.type.startsWith("portal_")) {{
-                    if (player.x + player.size >= obj.x && player.x <= obj.x + obj.w) {{
-                        if (obj.type === "portal_ship" && player.mode !== "ship") {{
-                            player.mode = "ship";
-                            player.vy = 0;
-                            player.rotation = 0;
-                        }}
-                        else if (obj.type === "portal_cube" && player.mode !== "cube") {{ 
-                            player.mode = "cube"; 
-                            player.gravityDir = 1; 
-                            player.vy = 0;
-                        }}
-                        else if (obj.type === "portal_spider" && player.mode !== "spider") {{
-                            player.mode = "spider";
-                            player.gravityDir = 1; // 바닥 방향 설정
-                            player.y = 340;        // 바닥으로 즉시 착지
-                            player.vy = 0;
-                            player.isGrounded = true;
-                        }}
-                    }}
+                if (obj.type.startsWith("portal_") && player.x + player.size >= obj.x && player.x <= obj.x + obj.w) {{
+                    if (obj.type === "portal_ship" && player.mode !== "ship") {{ player.mode = "ship"; player.vy = 0; player.rotation = 0; }}
+                    else if (obj.type === "portal_cube" && player.mode !== "cube") {{ player.mode = "cube"; player.gravityDir = 1; player.vy = 0; }}
+                    else if (obj.type === "portal_spider" && player.mode !== "spider") {{ player.mode = "spider"; player.gravityDir = 1; player.y = 340; player.vy = 0; player.isGrounded = true; }}
                 }}
-
                 if (obj.type === "spike" || obj.type === "spike_down") {{
-                    const margin = 5;
-                    if (player.x + player.size - margin > obj.x + margin &&
-                        player.x + margin < obj.x + obj.w - margin &&
-                        player.y + player.size - margin > obj.y + margin &&
-                        player.y + margin < obj.y + obj.h - margin) die();
-                }} 
-                else if (obj.type === "block") {{
-                    if (player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
-                        let currentBottom = player.y + player.size;
-                        let previousBottom = prevY + player.size;
-
-                        if (previousBottom <= obj.y + 15 && currentBottom >= obj.y && player.vy >= 0) {{
-                            player.y = obj.y - player.size; player.vy = 0; player.isGrounded = true;
-                        }} else if (prevY >= obj.y + obj.h - 15 && player.y <= obj.y + obj.h && player.vy < 0) {{
-                            if (player.mode === "ship") {{ player.y = obj.y + obj.h; player.vy = 0; }}
-                            else die();
-                        }} else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 8) {{
-                            die();
-                        }}
-                    }}
+                    const m = 5;
+                    if (player.x + player.size - m > obj.x + m && player.x + m < obj.x + obj.w - m &&
+                        player.y + player.size - m > obj.y + m && player.y + m < obj.y + obj.h - m) die();
+                }} else if (obj.type === "block" && player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
+                    if (prevY + player.size <= obj.y + 15 && player.y + player.size >= obj.y && player.vy >= 0) {{
+                        player.y = obj.y - player.size; player.vy = 0; player.isGrounded = true;
+                    }} else if (prevY >= obj.y + obj.h - 15 && player.y <= obj.y + obj.h && player.vy < 0) {{
+                        if (player.mode === "ship") {{ player.y = obj.y + obj.h; player.vy = 0; }} else die();
+                    }} else if (player.y + player.size > obj.y + 8 && player.y < obj.y + obj.h - 8) die();
                 }}
             }}
-
             if (player.mode === "cube" && player.isGrounded && isHoldingJump) tryJump();
             if (player.x >= finishX && !player.suckAnim) player.suckAnim = true;
         }}
 
         function drawPlayer(x, y, size, rotation, mode, scale = 1.0, alpha = 1.0) {{
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.translate(x + size / 2, y + size / 2);
-            ctx.scale(scale, scale);
-            ctx.rotate(((rotation + player.suckAngle) * Math.PI) / 180);
-            let half = size / 2;
-
+            ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x + size / 2, y + size / 2); ctx.scale(scale, scale); ctx.rotate(((rotation + player.suckAngle) * Math.PI) / 180);
+            let h = size / 2;
             if (mode === "cube") {{
-                ctx.fillStyle = "#00ffc8"; ctx.fillRect(-half, -half, size, size);
-                ctx.fillStyle = "#090915"; ctx.fillRect(-half + 3, -half + 3, size - 6, size - 6);
-                ctx.fillStyle = "#00ffc8"; ctx.fillRect(-half + 6, -half + 6, size - 12, size - 12);
-                ctx.fillStyle = "#ffffff"; ctx.fillRect(-half + 7, -half + 8, 5, 7); ctx.fillRect(-half + 18, -half + 8, 5, 7);
-                ctx.fillStyle = "#000000"; ctx.fillRect(-half + 9, -half + 10, 3, 4); ctx.fillRect(-half + 20, -half + 10, 3, 4);
+                ctx.fillStyle = "{main_color}"; ctx.fillRect(-h, -h, size, size);
+                ctx.fillStyle = "{bg_top}"; ctx.fillRect(-h + 3, -h + 3, size - 6, size - 6);
+                ctx.fillStyle = "{main_color}"; ctx.fillRect(-h + 6, -h + 6, size - 12, size - 12);
+                ctx.fillStyle = "#fff"; ctx.fillRect(-h + 7, -h + 8, 5, 7); ctx.fillRect(-h + 18, -h + 8, 5, 7);
+                ctx.fillStyle = "#000"; ctx.fillRect(-h + 9, -h + 10, 3, 4); ctx.fillRect(-h + 20, -h + 10, 3, 4);
             }} else if (mode === "ship") {{
-                ctx.fillStyle = "#ff0055";
-                ctx.beginPath();
-                ctx.moveTo(-half - 8, 0);
-                ctx.lineTo(-half + 4, -half + 2);
-                ctx.lineTo(half + 12, -half + 8);
-                ctx.lineTo(half + 16, 0);
-                ctx.lineTo(half + 12, half - 8);
-                ctx.lineTo(-half + 4, half - 2);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5; ctx.stroke();
-
-                ctx.fillStyle = "#ffaa00";
-                ctx.fillRect(-half - 4, -half - 4, 8, 6);
-                ctx.fillRect(-half - 4, half - 2, 8, 6);
-
-                let miniSize = 12;
-                ctx.fillStyle = "#00ffc8"; 
-                ctx.fillRect(-miniSize/2 + 2, -miniSize/2 - 2, miniSize, miniSize);
+                ctx.fillStyle = "{main_color}"; ctx.beginPath(); ctx.moveTo(-h - 8, 0); ctx.lineTo(-h + 4, -h + 2);
+                ctx.lineTo(h + 12, -h + 8); ctx.lineTo(h + 16, 0); ctx.lineTo(h + 12, h - 8); ctx.lineTo(-h + 4, h - 2);
+                ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+                ctx.fillStyle = "#ffaa00"; ctx.fillRect(-h - 4, -h - 4, 8, 6); ctx.fillRect(-h - 4, h - 2, 8, 6);
             }} else if (mode === "spider") {{
-                ctx.fillStyle = "#a600ff";
-                ctx.fillRect(-half, -half + 5, size, size - 10);
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(-half + 5, -half + 8, 6, 6);
-                ctx.fillRect(half - 11, -half + 8, 6, 6);
-                ctx.strokeStyle = "#a600ff"; ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.moveTo(-half, -half); ctx.lineTo(-half - 6, -half - 6);
-                ctx.moveTo(half, -half); ctx.lineTo(half + 6, -half - 6);
-                ctx.moveTo(-half, half); ctx.lineTo(-half - 6, half + 6);
-                ctx.moveTo(half, half); ctx.lineTo(half + 6, half + 6);
-                ctx.stroke();
+                ctx.fillStyle = "#a600ff"; ctx.fillRect(-h, -h + 5, size, size - 10);
+                ctx.fillStyle = "#fff"; ctx.fillRect(-h + 5, -h + 8, 6, 6); ctx.fillRect(h - 11, -h + 8, 6, 6);
+                ctx.strokeStyle = "#a600ff"; ctx.lineWidth = 3; ctx.beginPath();
+                ctx.moveTo(-h, -h); ctx.lineTo(-h - 6, -h - 6); ctx.moveTo(h, -h); ctx.lineTo(h + 6, -h - 6);
+                ctx.moveTo(-h, h); ctx.lineTo(-h - 6, h + 6); ctx.moveTo(h, h); ctx.lineTo(h + 6, h + 6); ctx.stroke();
             }}
             ctx.restore();
         }}
 
         function draw() {{
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const camX = player.x - 150;
-
-            ctx.strokeStyle = "rgba(0, 255, 200, 0.05)";
-            ctx.lineWidth = 1;
+            ctx.clearRect(0, 0, canvas.width, canvas.height); const camX = player.x - 150;
+            ctx.strokeStyle = "{main_color}11"; ctx.lineWidth = 1;
             for (let i = 0; i < canvas.width; i += 40) {{
-                let offset = (camX * 0.2) % 40;
-                ctx.beginPath(); ctx.moveTo(i - offset, 0); ctx.lineTo(i - offset, canvas.height); ctx.stroke();
+                let offset = (camX * 0.2) % 40; ctx.beginPath(); ctx.moveTo(i - offset, 0); ctx.lineTo(i - offset, canvas.height); ctx.stroke();
             }}
+            for (let t of player.trail) drawPlayer(t.x - camX, t.y, player.size, t.rotation, t.mode, 1.0, t.alpha * 0.3);
 
-            for (let t of player.trail) {{
-                drawPlayer(t.x - camX, t.y, player.size, t.rotation, t.mode, 1.0, t.alpha * 0.3);
-            }}
-
-            ctx.fillStyle = "#05050b"; 
-            ctx.fillRect(0, 370, canvas.width, 80);
-            ctx.fillRect(0, 0, canvas.width, 40);
-            ctx.strokeStyle = "#00ffc8"; ctx.lineWidth = 3;
+            ctx.fillStyle = "#05050b"; ctx.fillRect(0, 370, canvas.width, 80); ctx.fillRect(0, 0, canvas.width, 40);
+            ctx.strokeStyle = "{main_color}"; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(canvas.width, 40); ctx.stroke();
 
@@ -2595,67 +2494,36 @@ game_html = f"""
                 if (sx >= -100 && sx <= canvas.width + 100) {{
                     if (obj.type === "block") {{
                         ctx.fillStyle = "#18182e"; ctx.fillRect(sx, obj.y, obj.w, obj.h);
-                        ctx.strokeStyle = "#00d2ff"; ctx.lineWidth = 2; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
+                        ctx.strokeStyle = "{block_stroke}"; ctx.lineWidth = 2; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
                     }} else if (obj.type === "spike") {{
-                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath();
-                        ctx.moveTo(sx, obj.y + obj.h); ctx.lineTo(sx + obj.w / 2, obj.y); ctx.lineTo(sx + obj.w, obj.y + obj.h);
-                        ctx.closePath(); ctx.fill();
-                        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath(); ctx.moveTo(sx, obj.y + obj.h); ctx.lineTo(sx + obj.w / 2, obj.y); ctx.lineTo(sx + obj.w, obj.y + obj.h); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
                     }} else if (obj.type === "spike_down") {{
-                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath();
-                        ctx.moveTo(sx, obj.y); ctx.lineTo(sx + obj.w / 2, obj.y + obj.h); ctx.lineTo(sx + obj.w, obj.y);
-                        ctx.closePath(); ctx.fill();
-                        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath(); ctx.moveTo(sx, obj.y); ctx.lineTo(sx + obj.w / 2, obj.y + obj.h); ctx.lineTo(sx + obj.w, obj.y); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
                     }} else if (obj.type.startsWith("portal_")) {{
-                        let color = "#00ffc8";
-                        if (obj.type === "portal_ship") color = "#ff00d2";
-                        else if (obj.type === "portal_spider") color = "#a600ff";
-
-                        ctx.strokeStyle = color; ctx.lineWidth = 5;
-                        ctx.beginPath();
-                        ctx.ellipse(sx + obj.w / 2, obj.y + obj.h / 2, obj.w / 2, obj.h / 2 + Math.sin(portalAnim) * 4, 0, 0, Math.PI * 2);
-                        ctx.stroke();
-
-                        ctx.fillStyle = color;
-                        ctx.fillRect(sx + obj.w / 2 - 2, obj.y, 4, obj.h);
+                        let c = "{main_color}"; if (obj.type === "portal_ship") c = "#ff00d2"; else if (obj.type === "portal_spider") c = "#a600ff";
+                        ctx.strokeStyle = c; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(sx + obj.w / 2, obj.y + obj.h / 2, obj.w / 2, obj.h / 2 + Math.sin(portalAnim) * 4, 0, 0, Math.PI * 2); ctx.stroke();
+                        ctx.fillStyle = c; ctx.fillRect(sx + obj.w / 2 - 2, obj.y, 4, obj.h);
                     }}
                 }}
             }}
 
-            for (let p of particles) {{
-                ctx.save();
-                ctx.globalAlpha = p.alpha;
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x - camX, p.y, p.size, p.size);
-                ctx.restore();
-            }}
-
+            for (let p of particles) {{ ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.fillRect(p.x - camX, p.y, p.size, p.size); ctx.restore(); }}
             let finishSx = finishX - camX;
             if (finishSx <= canvas.width + 100) {{
-                let gradient = ctx.createLinearGradient(finishSx - 40, 0, finishSx + 40, 0);
-                gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
-                gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.95)");
-                gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-                ctx.fillStyle = gradient;
-                ctx.fillRect(finishSx - 40, 0, 80, canvas.height);
+                let g = ctx.createLinearGradient(finishSx - 40, 0, finishSx + 40, 0);
+                g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.5, "rgba(255,255,255,0.95)"); g.addColorStop(1, "rgba(255,255,255,0)");
+                ctx.fillStyle = g; ctx.fillRect(finishSx - 40, 0, 80, canvas.height);
             }}
 
-            if (!player.isDead && player.suckScale > 0) {{
-                drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, player.suckScale);
-            }}
-
+            if (!player.isDead && player.suckScale > 0) drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, player.suckScale);
             let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
-            ctx.fillStyle = "#ffffff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "left";
-            ctx.fillText(progress + "%", 20, 65);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "left"; ctx.fillText(progress + "%", 20, 65);
 
             if (player.isDead) {{
-                ctx.fillStyle = "#ff2a6d"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center";
-                ctx.fillText("💥 GAME OVER (" + player.deathPercent + "%)", canvas.width / 2, 210);
-                ctx.font = "15px sans-serif"; ctx.fillStyle = "#bbbbdd";
-                ctx.fillText("화면 클릭 또는 'R' 키를 눌러 재시작", canvas.width / 2, 250);
+                ctx.fillStyle = "#ff2a6d"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥 GAME OVER (" + player.deathPercent + "%)", canvas.width / 2, 210);
+                ctx.font = "15px sans-serif"; ctx.fillStyle = "#bbbbdd"; ctx.fillText("화면 클릭 또는 'R' 키를 눌러 재시작", canvas.width / 2, 250);
             }} else if (player.isWin) {{
-                ctx.fillStyle = "#ffea00"; ctx.font = "bold 32px sans-serif"; ctx.textAlign = "center";
-                ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 220);
+                ctx.fillStyle = "#ffea00"; ctx.font = "bold 32px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 220);
             }}
         }}
 
@@ -2666,4 +2534,5 @@ game_html = f"""
 </html>
 """
 
+# HTML 렌더링
 components.html(game_html, height=530)
