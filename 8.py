@@ -2940,4 +2940,477 @@ game_html = f"""
 </html>
 """
 
-components.html(game_html, height=530).html(game_html, height=530)
+components.html(game_html, height=530).html(game_html, height=530)import streamlit as st
+import streamlit.components.v1 as components
+import json
+
+st.set_page_config(page_title="지오메트리 대쉬: 10단계 풀버전", layout="wide")
+
+# 사이드바에서 스테이지 선택
+st.sidebar.title("🎮 스테이지 선택 (1~10단계)")
+stage = st.sidebar.radio(
+    "플레이할 단계를 고르세요:", 
+    [
+        "1단계: Normal (시안)", 
+        "2단계: Hard (라임)", 
+        "3단계: Insane (오렌지)", 
+        "4단계: Demon (레드)", 
+        "5단계: Extreme (퍼플)",
+        "6단계: Insane Demon (옐로우)",
+        "7단계: Extreme Demon (핫핑크)",
+        "8단계: Silent Demon (마젠타)",
+        "9단계: Impossible (골드)",
+        "10단계: Mythic (네온 화이트)"
+    ]
+)
+
+# --- 1단계 ~ 10단계 맵 데이터 정의 ---
+MAP_STAGE_1 = [
+    {"type": "spike", "x": 600, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 1000, "y": 310, "w": 40, "h": 30},
+    {"type": "portal_ship", "x": 1500, "y": 200, "w": 40, "h": 80},
+    {"type": "block", "x": 2000, "y": 250, "w": 40, "h": 120},
+    {"type": "portal_cube", "x": 2800, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 3200, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_2 = [
+    {"type": "spike", "x": 500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 800, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 830, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_ship", "x": 1200, "y": 200, "w": 40, "h": 80},
+    {"type": "block", "x": 1500, "y": 280, "w": 60, "h": 90},
+    {"type": "spike_down", "x": 1515, "y": 40, "w": 30, "h": 30},
+    {"type": "block", "x": 1900, "y": 40, "w": 60, "h": 150},
+    {"type": "portal_spider", "x": 2800, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 3100, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_cube", "x": 4200, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 4800, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4830, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_3 = [
+    {"type": "spike", "x": 450, "y": 340, "w": 30, "h": 30},
+    {"type": "block", "x": 700, "y": 310, "w": 30, "h": 60},
+    {"type": "block", "x": 900, "y": 270, "w": 30, "h": 100},
+    {"type": "portal_ship", "x": 1400, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 1700, "y": 40, "w": 300, "h": 120},
+    {"type": "block", "x": 1700, "y": 250, "w": 300, "h": 120},
+    {"type": "portal_spider", "x": 2300, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 2600, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 2800, "y": 40, "w": 30, "h": 30},
+    {"type": "portal_cube", "x": 3500, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 4000, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4030, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4060, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_4 = [
+    {"type": "spike", "x": 400, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_spider", "x": 700, "y": 200, "w": 40, "h": 80},
+    {"type": "spike", "x": 950, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 1150, "y": 40, "w": 30, "h": 30},
+    {"type": "portal_ship", "x": 1800, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 2100, "y": 200, "w": 50, "h": 170},
+    {"type": "block", "x": 2350, "y": 40, "w": 50, "h": 170},
+    {"type": "portal_cube", "x": 3000, "y": 150, "w": 40, "h": 80},
+    {"type": "spike", "x": 3800, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3830, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3860, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_5 = [
+    {"type": "spike", "x": 350, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 380, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 410, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_mini", "x": 650, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_ship", "x": 850, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 1100, "y": 40, "w": 40, "h": 150},
+    {"type": "block", "x": 1100, "y": 220, "w": 40, "h": 150},
+    {"type": "portal_normal", "x": 1600, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_spider", "x": 1900, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 2100, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_cube", "x": 2700, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 3200, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3230, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3260, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_6 = [
+    {"type": "portal_gravity_up", "x": 500, "y": 180, "w": 40, "h": 80},
+    {"type": "spike_down", "x": 800, "y": 40, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 830, "y": 40, "w": 30, "h": 30},
+    {"type": "portal_gravity_down", "x": 1200, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_ship", "x": 1500, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 1800, "y": 40, "w": 50, "h": 160},
+    {"type": "block", "x": 1800, "y": 230, "w": 50, "h": 140},
+    {"type": "portal_mini", "x": 2300, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 2600, "y": 40, "w": 300, "h": 160},
+    {"type": "block", "x": 2600, "y": 220, "w": 300, "h": 150},
+    {"type": "portal_cube", "x": 3300, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_normal", "x": 3500, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 4000, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4030, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 4060, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_7 = [
+    {"type": "spike", "x": 350, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 380, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_ship", "x": 600, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_mini", "x": 800, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 1100, "y": 40, "w": 60, "h": 165},
+    {"type": "block", "x": 1100, "y": 235, "w": 60, "h": 135},
+    {"type": "block", "x": 1400, "y": 40, "w": 60, "h": 135},
+    {"type": "block", "x": 1400, "y": 205, "w": 60, "h": 165},
+    {"type": "portal_spider", "x": 1800, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 2100, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 2250, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 2400, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_cube", "x": 2800, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_normal", "x": 3000, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 3500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3530, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3560, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_8 = [
+    {"type": "spike", "x": 300, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 330, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 360, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_gravity_up", "x": 550, "y": 180, "w": 40, "h": 80},
+    {"type": "spike_down", "x": 750, "y": 40, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 780, "y": 40, "w": 30, "h": 30},
+    {"type": "portal_ship", "x": 1050, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 1300, "y": 40, "w": 400, "h": 155},
+    {"type": "block", "x": 1300, "y": 225, "w": 400, "h": 145},
+    {"type": "portal_spider", "x": 1900, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 2100, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 2220, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 2340, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_gravity_down", "x": 2600, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_cube", "x": 2900, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 3400, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3430, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3460, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_9 = [
+    {"type": "spike", "x": 300, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 330, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 360, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_mini", "x": 550, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_ship", "x": 750, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 1000, "y": 40, "w": 50, "h": 170},
+    {"type": "block", "x": 1000, "y": 230, "w": 50, "h": 140},
+    {"type": "block", "x": 1250, "y": 40, "w": 50, "h": 140},
+    {"type": "block", "x": 1250, "y": 200, "w": 50, "h": 170},
+    {"type": "portal_spider", "x": 1600, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 1800, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 1900, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 2000, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 2100, "y": 40, "w": 30, "h": 30},
+    {"type": "portal_cube", "x": 2400, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_normal", "x": 2600, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 3000, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3030, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3060, "y": 340, "w": 30, "h": 30}
+]
+
+MAP_STAGE_10 = [
+    {"type": "spike", "x": 250, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 280, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 310, "y": 340, "w": 30, "h": 30},
+    {"type": "portal_mini", "x": 500, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_gravity_up", "x": 650, "y": 180, "w": 40, "h": 80},
+    {"type": "spike_down", "x": 850, "y": 40, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 880, "y": 40, "w": 30, "h": 30},
+    {"type": "portal_ship", "x": 1100, "y": 180, "w": 40, "h": 80},
+    {"type": "block", "x": 1350, "y": 40, "w": 500, "h": 168},
+    {"type": "block", "x": 1350, "y": 212, "w": 500, "h": 158},
+    {"type": "portal_spider", "x": 2000, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 2180, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 2280, "y": 40, "w": 30, "h": 30},
+    {"type": "spike", "x": 2380, "y": 340, "w": 30, "h": 30},
+    {"type": "spike_down", "x": 2480, "y": 40, "w": 30, "h": 30},
+    {"type": "portal_gravity_down", "x": 2700, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_cube", "x": 2900, "y": 180, "w": 40, "h": 80},
+    {"type": "portal_normal", "x": 3100, "y": 180, "w": 40, "h": 80},
+    {"type": "spike", "x": 3500, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3530, "y": 340, "w": 30, "h": 30},
+    {"type": "spike", "x": 3560, "y": 340, "w": 30, "h": 30}
+]
+
+# --- 테마 설정 모듈 ---
+stages_config = {
+    "1단계": {"map": MAP_STAGE_1, "finish": 3800, "color": "#00ffc8", "bg_top": "#090915", "bg_bottom": "#14142e", "stroke": "#00d2ff"},
+    "2단계": {"map": MAP_STAGE_2, "finish": 5200, "color": "#39ff14", "bg_top": "#051205", "bg_bottom": "#102a10", "stroke": "#22cc11"},
+    "3단계": {"map": MAP_STAGE_3, "finish": 5000, "color": "#ffaa00", "bg_top": "#180a00", "bg_bottom": "#331600", "stroke": "#ff7700"},
+    "4단계": {"map": MAP_STAGE_4, "finish": 4900, "color": "#ff0055", "bg_top": "#1a0008", "bg_bottom": "#330011", "stroke": "#ff0022"},
+    "5단계": {"map": MAP_STAGE_5, "finish": 3800, "color": "#b000ff", "bg_top": "#12001a", "bg_bottom": "#260033", "stroke": "#d400ff"},
+    "6단계": {"map": MAP_STAGE_6, "finish": 4500, "color": "#ffee00", "bg_top": "#1a1800", "bg_bottom": "#333000", "stroke": "#ffea00"},
+    "7단계": {"map": MAP_STAGE_7, "finish": 4000, "color": "#ff0099", "bg_top": "#1a0010", "bg_bottom": "#330020", "stroke": "#ff00bb"},
+    "8단계": {"map": MAP_STAGE_8, "finish": 3900, "color": "#00e1ff", "bg_top": "#00121a", "bg_bottom": "#002433", "stroke": "#00f0ff"},
+    "9단계": {"map": MAP_STAGE_9, "finish": 3500, "color": "#ffbd00", "bg_top": "#1a1300", "bg_bottom": "#332600", "stroke": "#ffd000"},
+    "10단계": {"map": MAP_STAGE_10, "finish": 4000, "color": "#ffffff", "bg_top": "#111111", "bg_bottom": "#2a2a2a", "stroke": "#ffffff"}
+}
+
+curr_key = stage.split(":")[0]
+cfg = stages_config[curr_key]
+
+map_json = json.dumps(cfg["map"])
+
+# --- HTML / JS 캔버스 엔진 ---
+game_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ 
+            margin: 0; background-color: #080810; text-align: center; color: white; 
+            font-family: 'Segoe UI', sans-serif; overflow: hidden; user-select: none; 
+        }}
+        canvas {{ 
+            border: 2px solid {cfg["color"]}; 
+            box-shadow: 0 0 25px {cfg["color"]}66; 
+            border-radius: 8px; display: block; margin: 10px auto; 
+            background: linear-gradient(to bottom, {cfg["bg_top"]}, {cfg["bg_bottom"]}); 
+            cursor: pointer; 
+        }}
+        .info {{ font-size: 14px; color: #9d9dbf; margin-top: 8px; font-weight: 600; }}
+    </style>
+</head>
+<body tabindex="0">
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
+    <div class="info">💡 [클릭 / 스페이스바 / 위쪽 화살표] 점프 · 비행 · 거미 반전 (R: 리셋)</div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        window.focus(); document.body.focus();
+
+        const mapObjects = {map_json};
+        const finishX = {cfg["finish"]};
+
+        let player = {{
+            x: 100, y: 340, baseSize: 30, size: 30, vy: 0, rotation: 0,
+            mode: "cube", isGrounded: true, isDead: false, isWin: false,
+            gravityDir: 1, trail: [], deathPercent: 0, suckAnim: false, suckScale: 1.0, suckAngle: 0,
+            isMini: false
+        }};
+
+        let isHoldingJump = false; let particles = []; let portalAnim = 0;
+        const speedX = 5.5; const gravity = 0.9; const jumpForce = -13.5;
+
+        function tryJump() {{
+            if (player.isDead || player.isWin) return;
+            if (player.mode === "cube" && player.isGrounded) {{
+                player.vy = jumpForce * player.gravityDir;
+                player.isGrounded = false;
+                addJumpParticles();
+            }} else if (player.mode === "spider") {{
+                teleportSpider();
+            }}
+        }}
+
+        function teleportSpider() {{
+            const topBoundary = 40; const bottomBoundary = 370 - player.size;
+            if (player.gravityDir === 1) {{ player.y = topBoundary; player.gravityDir = -1; }} 
+            else {{ player.y = bottomBoundary; player.gravityDir = 1; }}
+            player.vy = 0; player.isGrounded = true;
+            for (let i = 0; i < 12; i++) particles.push({{
+                x: player.x + player.size/2, y: player.y + player.size/2, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                size: Math.random() * 4 + 2, color: "#a600ff", alpha: 1.0
+            }});
+        }}
+
+        function die() {{
+            if (!player.isDead && !player.suckAnim) {{
+                player.isDead = true;
+                player.deathPercent = Math.min(100, Math.floor((player.x / finishX) * 100));
+                for (let i = 0; i < 35; i++) particles.push({{
+                    x: player.x + player.size/2, y: player.y + player.size/2, vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9,
+                    size: Math.random() * 5 + 2, color: Math.random() > 0.5 ? "#ff2a6d" : "{cfg["color"]}", alpha: 1.0
+                }});
+            }}
+        }}
+
+        function reset() {{
+            player.x = 100; player.y = 340; player.vy = 0; player.rotation = 0;
+            player.mode = "cube"; player.gravityDir = 1; player.isGrounded = true; 
+            player.isDead = false; player.isWin = false; player.trail = []; 
+            particles = []; isHoldingJump = false; player.deathPercent = 0;
+            player.suckAnim = false; player.suckScale = 1.0; player.suckAngle = 0;
+            player.isMini = false; player.size = 30;
+        }}
+
+        function handleInputStart() {{ window.focus(); if (player.isDead) reset(); else {{ isHoldingJump = true; tryJump(); }} }}
+        function handleInputEnd() {{ isHoldingJump = false; }}
+
+        window.addEventListener("keydown", (e) => {{
+            if (e.code === "Space" || e.code === "ArrowUp") {{ e.preventDefault(); if (!isHoldingJump) handleInputStart(); }}
+            if (e.code === "KeyR") reset();
+        }});
+        window.addEventListener("keyup", (e) => {{ if (e.code === "Space" || e.code === "ArrowUp") {{ e.preventDefault(); handleInputEnd(); }} }});
+        canvas.addEventListener("mousedown", (e) => {{ e.preventDefault(); handleInputStart(); }});
+        window.addEventListener("mouseup", (e) => {{ e.preventDefault(); handleInputEnd(); }});
+        
+        function addJumpParticles() {{
+            for (let i = 0; i < 6; i++) particles.push({{
+                x: player.x + player.size/2, y: player.y + (player.gravityDir === 1 ? player.size : 0),
+                vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2 * player.gravityDir,
+                size: Math.random() * 3 + 2, color: "{cfg["color"]}", alpha: 1.0
+            }});
+        }}
+
+        function update() {{
+            portalAnim += 0.08;
+            for (let i = particles.length - 1; i >= 0; i--) {{
+                let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }}
+
+            if (player.suckAnim) {{
+                player.suckScale -= 0.02; player.suckAngle += 15;
+                player.x += (finishX + 20 - player.x) * 0.1; player.y += (225 - player.y) * 0.1;
+                if (player.suckScale <= 0) {{ player.suckScale = 0; player.suckAnim = false; player.isWin = true; }}
+                return;
+            }}
+
+            if (player.isDead || player.isWin) return;
+            player.x += speedX; let prevY = player.y;
+
+            if (Math.random() < 0.4) player.trail.push({{ x: player.x, y: player.y, size: player.size, rotation: player.rotation, mode: player.mode, alpha: 0.5 }});
+            for (let i = player.trail.length - 1; i >= 0; i--) {{
+                player.trail[i].alpha -= 0.05; if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
+            }}
+
+            if (player.mode === "cube") {{
+                player.vy += gravity * player.gravityDir;
+                if (!player.isGrounded) player.rotation += 8 * player.gravityDir; else player.rotation = Math.round(player.rotation / 90) * 90;
+            }} else if (player.mode === "ship") {{
+                if (isHoldingJump) player.vy -= 0.58 * player.gravityDir; else player.vy += 0.52 * player.gravityDir;
+                player.vy = Math.max(-6.5, Math.min(6.5, player.vy));
+                player.rotation += (player.vy * 4.5 - player.rotation) * 0.25;
+            }} else if (player.mode === "spider") {{ player.vy = 0; player.rotation = player.gravityDir === -1 ? 180 : 0; }}
+
+            player.y += player.vy; player.isGrounded = false;
+            
+            const floorY = 370 - player.size;
+            const ceilingY = 40;
+
+            if (player.gravityDir === 1 && player.y >= floorY) {{ player.y = floorY; player.vy = 0; player.isGrounded = true; }}
+            if (player.gravityDir === -1 && player.y <= ceilingY) {{ player.y = ceilingY; player.vy = 0; player.isGrounded = true; }}
+
+            for (let obj of mapObjects) {{
+                if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
+                if (obj.type.startsWith("portal_") && player.x + player.size >= obj.x && player.x <= obj.x + obj.w) {{
+                    if (obj.type === "portal_ship" && player.mode !== "ship") {{ player.mode = "ship"; player.vy = 0; }}
+                    else if (obj.type === "portal_cube" && player.mode !== "cube") {{ player.mode = "cube"; player.vy = 0; }}
+                    else if (obj.type === "portal_spider" && player.mode !== "spider") {{ player.mode = "spider"; player.vy = 0; player.isGrounded = true; }}
+                    else if (obj.type === "portal_gravity_up" && player.gravityDir !== -1) {{ player.gravityDir = -1; }}
+                    else if (obj.type === "portal_gravity_down" && player.gravityDir !== 1) {{ player.gravityDir = 1; }}
+                    else if (obj.type === "portal_mini" && !player.isMini) {{ player.isMini = true; player.size = 18; }}
+                    else if (obj.type === "portal_normal" && player.isMini) {{ player.isMini = false; player.size = 30; }}
+                }}
+                if (obj.type === "spike" || obj.type === "spike_down") {{
+                    const m = 4;
+                    if (player.x + player.size - m > obj.x + m && player.x + m < obj.x + obj.w - m &&
+                        player.y + player.size - m > obj.y + m && player.y + m < obj.y + obj.h - m) die();
+                }} else if (obj.type === "block" && player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
+                    if (prevY + player.size <= obj.y + 15 && player.y + player.size >= obj.y && player.vy >= 0) {{
+                        player.y = obj.y - player.size; player.vy = 0; player.isGrounded = true;
+                    }} else if (prevY >= obj.y + obj.h - 15 && player.y <= obj.y + obj.h && player.vy < 0) {{
+                        if (player.mode === "ship") {{ player.y = obj.y + obj.h; player.vy = 0; }} else die();
+                    }} else if (player.y + player.size > obj.y + 6 && player.y < obj.y + obj.h - 6) die();
+                }}
+            }}
+            if (player.mode === "cube" && player.isGrounded && isHoldingJump) tryJump();
+            if (player.x >= finishX && !player.suckAnim) player.suckAnim = true;
+        }}
+
+        function drawPlayer(x, y, size, rotation, mode, scale = 1.0, alpha = 1.0) {{
+            ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x + size / 2, y + size / 2); ctx.scale(scale, scale); ctx.rotate(((rotation + player.suckAngle) * Math.PI) / 180);
+            let h = size / 2;
+            if (mode === "cube") {{
+                ctx.fillStyle = "{cfg["color"]}"; ctx.fillRect(-h, -h, size, size);
+                ctx.fillStyle = "{cfg["bg_top"]}"; ctx.fillRect(-h + 3, -h + 3, size - 6, size - 6);
+                ctx.fillStyle = "{cfg["color"]}"; ctx.fillRect(-h + 6, -h + 6, size - 12, size - 12);
+                ctx.fillStyle = "#fff"; ctx.fillRect(-h + 5, -h + 6, 4, 6); ctx.fillRect(-h + 14, -h + 6, 4, 6);
+            }} else if (mode === "ship") {{
+                ctx.fillStyle = "{cfg["color"]}"; ctx.beginPath(); ctx.moveTo(-h - 6, 0); ctx.lineTo(-h + 3, -h + 2);
+                ctx.lineTo(h + 8, -h + 6); ctx.lineTo(h + 12, 0); ctx.lineTo(h + 8, h - 6); ctx.lineTo(-h + 3, h - 2);
+                ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+            }} else if (mode === "spider") {{
+                ctx.fillStyle = "#a600ff"; ctx.fillRect(-h, -h + 4, size, size - 8);
+                ctx.fillStyle = "#fff"; ctx.fillRect(-h + 4, -h + 6, 5, 5); ctx.fillRect(h - 9, -h + 6, 5, 5);
+            }}
+            ctx.restore();
+        }}
+
+        function draw() {{
+            ctx.clearRect(0, 0, canvas.width, canvas.height); const camX = player.x - 150;
+            ctx.strokeStyle = "{cfg["color"]}11"; ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 40) {{
+                let offset = (camX * 0.2) % 40; ctx.beginPath(); ctx.moveTo(i - offset, 0); ctx.lineTo(i - offset, canvas.height); ctx.stroke();
+            }}
+            for (let t of player.trail) drawPlayer(t.x - camX, t.y, t.size, t.rotation, t.mode, 1.0, t.alpha * 0.3);
+
+            ctx.fillStyle = "#05050b"; ctx.fillRect(0, 370, canvas.width, 80); ctx.fillRect(0, 0, canvas.width, 40);
+            ctx.strokeStyle = "{cfg["color"]}"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(canvas.width, 40); ctx.stroke();
+
+            for (let obj of mapObjects) {{
+                let sx = obj.x - camX;
+                if (sx >= -100 && sx <= canvas.width + 100) {{
+                    if (obj.type === "block") {{
+                        ctx.fillStyle = "#18182e"; ctx.fillRect(sx, obj.y, obj.w, obj.h);
+                        ctx.strokeStyle = "{cfg["stroke"]}"; ctx.lineWidth = 2; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
+                    }} else if (obj.type === "spike") {{
+                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath(); ctx.moveTo(sx, obj.y + obj.h); ctx.lineTo(sx + obj.w / 2, obj.y); ctx.lineTo(sx + obj.w, obj.y + obj.h); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
+                    }} else if (obj.type === "spike_down") {{
+                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath(); ctx.moveTo(sx, obj.y); ctx.lineTo(sx + obj.w / 2, obj.y + obj.h); ctx.lineTo(sx + obj.w, obj.y); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
+                    }} else if (obj.type.startsWith("portal_")) {{
+                        let c = "{cfg["color"]}"; 
+                        if (obj.type === "portal_ship") c = "#ff00d2"; 
+                        else if (obj.type === "portal_spider") c = "#a600ff";
+                        else if (obj.type === "portal_gravity_up") c = "#00d4ff";
+                        else if (obj.type === "portal_gravity_down") c = "#ffaa00";
+                        else if (obj.type === "portal_mini") c = "#00ff66";
+                        else if (obj.type === "portal_normal") c = "#ff3300";
+
+                        ctx.strokeStyle = c; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(sx + obj.w / 2, obj.y + obj.h / 2, obj.w / 2, obj.h / 2 + Math.sin(portalAnim) * 3, 0, 0, Math.PI * 2); ctx.stroke();
+                        ctx.fillStyle = c; ctx.fillRect(sx + obj.w / 2 - 2, obj.y, 4, obj.h);
+                    }}
+                }}
+            }}
+
+            for (let p of particles) {{ ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.fillRect(p.x - camX, p.y, p.size, p.size); ctx.restore(); }}
+            let finishSx = finishX - camX;
+            if (finishSx <= canvas.width + 100) {{
+                let g = ctx.createLinearGradient(finishSx - 40, 0, finishSx + 40, 0);
+                g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.5, "rgba(255,255,255,0.95)"); g.addColorStop(1, "rgba(255,255,255,0)");
+                ctx.fillStyle = g; ctx.fillRect(finishSx - 40, 0, 80, canvas.height);
+            }}
+
+            if (!player.isDead && player.suckScale > 0) drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, player.suckScale);
+            let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
+            ctx.fillStyle = "#fff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "left"; ctx.fillText(progress + "%", 20, 65);
+
+            if (player.isDead) {{
+                ctx.fillStyle = "#ff2a6d"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥 GAME OVER (" + player.deathPercent + "%)", canvas.width / 2, 210);
+                ctx.font = "15px sans-serif"; ctx.fillStyle = "#bbbbdd"; ctx.fillText("화면 클릭 또는 'R' 키를 눌러 재시작", canvas.width / 2, 250);
+            }} else if (player.isWin) {{
+                ctx.fillStyle = "#ffea00"; ctx.font = "bold 32px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 220);
+            }}
+        }}
+
+        function gameLoop() {{ update(); draw(); requestAnimationFrame(gameLoop); }}
+        gameLoop();
+    </script>
+</body>
+</html>
+"""
+
+components.html(game_html, height=530)
