@@ -2510,259 +2510,431 @@ stages_config = {
 curr_key = stage.split(":")[0]
 cfg = stages_config[curr_key]
 
-map_json = json.dumps(cfg["map"])
-
-# --- HTML / JS 캔버스 엔진 ---
-game_html = f"""
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <style>
-        body {{ 
-            margin: 0; background-color: #080810; text-align: center; color: white; 
-            font-family: 'Segoe UI', sans-serif; overflow: hidden; user-select: none; 
-        }}
-        canvas {{ 
-            border: 2px solid {cfg["color"]}; 
-            box-shadow: 0 0 25px {cfg["color"]}66; 
-            border-radius: 8px; display: block; margin: 10px auto; 
-            background: linear-gradient(to bottom, {cfg["bg_top"]}, {cfg["bg_bottom"]}); 
-            cursor: pointer; 
-        }}
-        .info {{ font-size: 14px; color: #9d9dbf; margin-top: 8px; font-weight: 600; }}
-    </style>
+  <meta charset="UTF-8">
+  <title>Geometry Dash Deluxe</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0e15;
+      color: #fff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #game-container {
+      position: relative;
+      width: 800px;
+      height: 400px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background: #111;
+    }
+    /* 로비 UI Overlay */
+    #lobby-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(10, 10, 20, 0.85);
+      backdrop-filter: blur(5px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    #lobby-overlay h1 {
+      font-size: 3rem;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
+      letter-spacing: 2px;
+    }
+    .stage-container {
+      display: flex;
+      gap: 20px;
+    }
+    .stage-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid #00ffff;
+      border-radius: 12px;
+      padding: 20px;
+      width: 180px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .stage-card:hover {
+      transform: translateY(-10px) scale(1.05);
+      background: rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 20px #00ffff;
+    }
+    .stage-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 10px; }
+    .stage-desc { font-size: 0.85rem; color: #ccc; }
+  </style>
 </head>
-<body tabindex="0">
-    <canvas id="gameCanvas" width="800" height="450"></canvas>
-    <div class="info">💡 [클릭 / 스페이스바 / 위쪽 화살표] 점프 · 비행 · 거미 반전 (R: 리셋)</div>
+<body>
 
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-        window.focus(); document.body.focus();
+<div id="game-container">
+  <canvas id="canvas" width="800" height="400"></canvas>
+  
+  <!-- 로비 화면 -->
+  <div id="lobby-overlay">
+    <h1>GEOMETRY DASH</h1>
+    <div class="stage-container">
+      <div class="stage-card" onclick="startStage(1)">
+        <div class="stage-title">STAGE 1</div>
+        <div class="stage-desc">기본 큐브 & 포탈 입문</div>
+      </div>
+      <div class="stage-card" onclick="startStage(2)" style="border-color: #ff00ff;">
+        <div class="stage-title" style="color: #ff00ff;">STAGE 2</div>
+        <div class="stage-desc">비행기 & 볼 모드 활용</div>
+      </div>
+      <div class="stage-card" onclick="startStage(3)" style="border-color: #ffff00;">
+        <div class="stage-title" style="color: #ffff00;">STAGE 3</div>
+        <div class="stage-desc">고속 웨이브 질주</div>
+      </div>
+    </div>
+  </div>
+</div>
 
-        const mapObjects = {map_json};
-        const finishX = {cfg["finish"]};
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const lobbyOverlay = document.getElementById('lobby-overlay');
 
-        let player = {{
-            x: 100, y: 340, baseSize: 30, size: 30, vy: 0, rotation: 0,
-            mode: "cube", isGrounded: true, isDead: false, isWin: false,
-            gravityDir: 1, trail: [], deathPercent: 0, suckAnim: false, suckScale: 1.0, suckAngle: 0,
-            isMini: false
-        }};
+// 게임 상태 변수
+let gameState = 'LOBBY'; // 'LOBBY', 'PLAYING', 'GAMEOVER'
+let currentStage = 1;
+let isHolding = false;
+let cameraShake = 0;
+let progress = 0;
 
-        let isHoldingJump = false; let particles = []; let portalAnim = 0;
-        const speedX = 5.5; const gravity = 0.9; const jumpForce = -13.5;
+// 플레이어 설정
+const player = {
+  x: 100,
+  y: 300,
+  size: 30,
+  vy: 0,
+  vx: 5,
+  rotation: 0,
+  mode: 'CUBE', // 'CUBE', 'SHIP', 'BALL', 'WAVE'
+  gravityDir: 1, // 1: 아래, -1: 위 (BALL 모드용)
+  isGrounded: false,
+  trail: []
+};
 
-        function tryJump() {{
-            if (player.isDead || player.isWin) return;
-            if (player.mode === "cube" && player.isGrounded) {{
-                player.vy = jumpForce * player.gravityDir;
-                player.isGrounded = false;
-                addJumpParticles();
-            }} else if (player.mode === "spider") {{
-                teleportSpider();
-            }}
-        }}
+// 입자 시스템
+let particles = [];
 
-        function teleportSpider() {{
-            const topBoundary = 40; const bottomBoundary = 370 - player.size;
-            if (player.gravityDir === 1) {{ player.y = topBoundary; player.gravityDir = -1; }} 
-            else {{ player.y = bottomBoundary; player.gravityDir = 1; }}
-            player.vy = 0; player.isGrounded = true;
-            for (let i = 0; i < 12; i++) particles.push({{
-                x: player.x + player.size/2, y: player.y + player.size/2, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
-                size: Math.random() * 4 + 2, color: "#a600ff", alpha: 1.0
-            }});
-        }}
+function createExplosion(x, y, color) {
+  for (let i = 0; i < 30; i++) {
+    particles.push({
+      x: x, y: y,
+      vx: (Math.random() - 0.5) * 12,
+      vy: (Math.random() - 0.5) * 12,
+      size: Math.random() * 6 + 2,
+      color: color,
+      life: 1.0
+    });
+  }
+}
 
-        function die() {{
-            if (!player.isDead && !player.suckAnim) {{
-                player.isDead = true;
-                player.deathPercent = Math.min(100, Math.floor((player.x / finishX) * 100));
-                for (let i = 0; i < 35; i++) particles.push({{
-                    x: player.x + player.size/2, y: player.y + player.size/2, vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9,
-                    size: Math.random() * 5 + 2, color: Math.random() > 0.5 ? "#ff2a6d" : "{cfg["color"]}", alpha: 1.0
-                }});
-            }}
-        }}
+// 장애물 및 포탈 레벨 데이터
+let obstacles = [];
+let portals = [];
 
-        function reset() {{
-            player.x = 100; player.y = 340; player.vy = 0; player.rotation = 0;
-            player.mode = "cube"; player.gravityDir = 1; player.isGrounded = true; 
-            player.isDead = false; player.isWin = false; player.trail = []; 
-            particles = []; isHoldingJump = false; player.deathPercent = 0;
-            player.suckAnim = false; player.suckScale = 1.0; player.suckAngle = 0;
-            player.isMini = false; player.size = 30;
-        }}
+function loadLevel(stage) {
+  obstacles = [];
+  portals = [];
+  
+  if (stage === 1) {
+    // 큐브 및 비행기 체험
+    obstacles = [
+      { x: 500, y: 340, w: 30, h: 30, type: 'SPIKE' },
+      { x: 800, y: 340, w: 30, h: 30, type: 'SPIKE' },
+      { x: 1100, y: 310, w: 60, h: 60, type: 'BLOCK' },
+      { x: 1600, y: 340, w: 30, h: 30, type: 'SPIKE' }
+    ];
+    portals = [
+      { x: 1300, y: 250, targetMode: 'SHIP' },
+      { x: 2200, y: 250, targetMode: 'CUBE' }
+    ];
+  } else if (stage === 2) {
+    // 볼 모드 포함
+    portals = [
+      { x: 400, y: 250, targetMode: 'BALL' },
+      { x: 1500, y: 250, targetMode: 'SHIP' }
+    ];
+    obstacles = [
+      { x: 700, y: 340, w: 30, h: 30, type: 'SPIKE' },
+      { x: 1000, y: 30, w: 30, h: 30, type: 'SPIKE_CEIL' },
+      { x: 1200, y: 340, w: 30, h: 30, type: 'SPIKE' }
+    ];
+  } else if (stage === 3) {
+    // 웨이브 모드 중심
+    portals = [
+      { x: 300, y: 250, targetMode: 'WAVE' }
+    ];
+    obstacles = [
+      { x: 600, y: 300, w: 40, h: 100, type: 'BLOCK' },
+      { x: 900, y: 0, w: 40, h: 150, type: 'BLOCK' },
+      { x: 1200, y: 250, w: 40, h: 150, type: 'BLOCK' }
+    ];
+  }
+}
 
-        function handleInputStart() {{ window.focus(); if (player.isDead) reset(); else {{ isHoldingJump = true; tryJump(); }} }}
-        function handleInputEnd() {{ isHoldingJump = false; }}
+// 게임 시작 함수
+function startStage(stageNum) {
+  currentStage = stageNum;
+  resetGame();
+  loadLevel(stageNum);
+  lobbyOverlay.style.display = 'none';
+  gameState = 'PLAYING';
+  requestAnimationFrame(gameLoop);
+}
 
-        window.addEventListener("keydown", (e) => {{
-            if (e.code === "Space" || e.code === "ArrowUp") {{ e.preventDefault(); if (!isHoldingJump) handleInputStart(); }}
-            if (e.code === "KeyR") reset();
-        }});
-        window.addEventListener("keyup", (e) => {{ if (e.code === "Space" || e.code === "ArrowUp") {{ e.preventDefault(); handleInputEnd(); }} }});
-        canvas.addEventListener("mousedown", (e) => {{ e.preventDefault(); handleInputStart(); }});
-        window.addEventListener("mouseup", (e) => {{ e.preventDefault(); handleInputEnd(); }});
-        
-        function addJumpParticles() {{
-            for (let i = 0; i < 6; i++) particles.push({{
-                x: player.x + player.size/2, y: player.y + (player.gravityDir === 1 ? player.size : 0),
-                vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2 * player.gravityDir,
-                size: Math.random() * 3 + 2, color: "{cfg["color"]}", alpha: 1.0
-            }});
-        }}
+function resetGame() {
+  player.x = 100;
+  player.y = 300;
+  player.vy = 0;
+  player.rotation = 0;
+  player.mode = 'CUBE';
+  player.gravityDir = 1;
+  player.trail = [];
+  particles = [];
+  progress = 0;
+}
 
-        function update() {{
-            portalAnim += 0.08;
-            for (let i = particles.length - 1; i >= 0; i--) {{
-                let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
-                if (p.alpha <= 0) particles.splice(i, 1);
-            }}
+// 입력 처리
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') handlePress();
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') handleRelease();
+});
+canvas.addEventListener('mousedown', handlePress);
+canvas.addEventListener('mouseup', handleRelease);
 
-            if (player.suckAnim) {{
-                player.suckScale -= 0.02; player.suckAngle += 15;
-                player.x += (finishX + 20 - player.x) * 0.1; player.y += (225 - player.y) * 0.1;
-                if (player.suckScale <= 0) {{ player.suckScale = 0; player.suckAnim = false; player.isWin = true; }}
-                return;
-            }}
+function handlePress() {
+  if (gameState !== 'PLAYING') return;
+  isHolding = true;
 
-            if (player.isDead || player.isWin) return;
-            player.x += speedX; let prevY = player.y;
+  if (player.mode === 'CUBE' && player.isGrounded) {
+    player.vy = -12;
+    player.isGrounded = false;
+  } else if (player.mode === 'BALL' && player.isGrounded) {
+    player.gravityDir *= -1;
+    player.vy = player.gravityDir * 5;
+    player.isGrounded = false;
+  }
+}
 
-            if (Math.random() < 0.4) player.trail.push({{ x: player.x, y: player.y, size: player.size, rotation: player.rotation, mode: player.mode, alpha: 0.5 }});
-            for (let i = player.trail.length - 1; i >= 0; i--) {{
-                player.trail[i].alpha -= 0.05; if (player.trail[i].alpha <= 0) player.trail.splice(i, 1);
-            }}
+function handleRelease() {
+  isHolding = false;
+}
 
-            if (player.mode === "cube") {{
-                player.vy += gravity * player.gravityDir;
-                if (!player.isGrounded) player.rotation += 8 * player.gravityDir; else player.rotation = Math.round(player.rotation / 90) * 90;
-            }} else if (player.mode === "ship") {{
-                if (isHoldingJump) player.vy -= 0.58 * player.gravityDir; else player.vy += 0.52 * player.gravityDir;
-                player.vy = Math.max(-6.5, Math.min(6.5, player.vy));
-                player.rotation += (player.vy * 4.5 - player.rotation) * 0.25;
-            }} else if (player.mode === "spider") {{ player.vy = 0; player.rotation = player.gravityDir === -1 ? 180 : 0; }}
+// 업데이트 로직
+function update() {
+  if (gameState !== 'PLAYING') return;
 
-            player.y += player.vy; player.isGrounded = false;
-            
-            const floorY = 370 - player.size;
-            const ceilingY = 40;
+  // 잔상 저장
+  player.trail.push({ x: player.x, y: player.y, rotation: player.rotation, mode: player.mode });
+  if (player.trail.length > 8) player.trail.shift();
 
-            if (player.gravityDir === 1 && player.y >= floorY) {{ player.y = floorY; player.vy = 0; player.isGrounded = true; }}
-            if (player.gravityDir === -1 && player.y <= ceilingY) {{ player.y = ceilingY; player.vy = 0; player.isGrounded = true; }}
+  // 모드별 물리 엔지니어링
+  if (player.mode === 'CUBE') {
+    player.vy += 0.7; // 중력
+    player.y += player.vy;
+    if (!player.isGrounded) player.rotation += 8;
+    else player.rotation = Math.round(player.rotation / 90) * 90;
 
-            for (let obj of mapObjects) {{
-                if (obj.x > player.x + 800 || obj.x + obj.w < player.x - 200) continue;
-                if (obj.type.startsWith("portal_") && player.x + player.size >= obj.x && player.x <= obj.x + obj.w) {{
-                    if (obj.type === "portal_ship" && player.mode !== "ship") {{ player.mode = "ship"; player.vy = 0; }}
-                    else if (obj.type === "portal_cube" && player.mode !== "cube") {{ player.mode = "cube"; player.vy = 0; }}
-                    else if (obj.type === "portal_spider" && player.mode !== "spider") {{ player.mode = "spider"; player.vy = 0; player.isGrounded = true; }}
-                    else if (obj.type === "portal_gravity_up" && player.gravityDir !== -1) {{ player.gravityDir = -1; }}
-                    else if (obj.type === "portal_gravity_down" && player.gravityDir !== 1) {{ player.gravityDir = 1; }}
-                    else if (obj.type === "portal_mini" && !player.isMini) {{ player.isMini = true; player.size = 18; }}
-                    else if (obj.type === "portal_normal" && player.isMini) {{ player.isMini = false; player.size = 30; }}
-                }}
-                if (obj.type === "spike" || obj.type === "spike_down") {{
-                    const m = 4;
-                    if (player.x + player.size - m > obj.x + m && player.x + m < obj.x + obj.w - m &&
-                        player.y + player.size - m > obj.y + m && player.y + m < obj.y + obj.h - m) die();
-                }} else if (obj.type === "block" && player.x + player.size > obj.x && player.x < obj.x + obj.w) {{
-                    if (prevY + player.size <= obj.y + 15 && player.y + player.size >= obj.y && player.vy >= 0) {{
-                        player.y = obj.y - player.size; player.vy = 0; player.isGrounded = true;
-                    }} else if (prevY >= obj.y + obj.h - 15 && player.y <= obj.y + obj.h && player.vy < 0) {{
-                        if (player.mode === "ship") {{ player.y = obj.y + obj.h; player.vy = 0; }} else die();
-                    }} else if (player.y + player.size > obj.y + 6 && player.y < obj.y + obj.h - 6) die();
-                }}
-            }}
-            if (player.mode === "cube" && player.isGrounded && isHoldingJump) tryJump();
-            if (player.x >= finishX && !player.suckAnim) player.suckAnim = true;
-        }}
+    // 바닥 착지
+    if (player.y >= 340) {
+      player.y = 340;
+      player.vy = 0;
+      player.isGrounded = true;
+    }
+  } else if (player.mode === 'SHIP') {
+    player.vy += isHolding ? -0.6 : 0.6;
+    player.y += player.vy;
+    player.rotation = player.vy * 3;
+    
+    if (player.y > 340) { player.y = 340; player.vy = 0; }
+    if (player.y < 30) { player.y = 30; player.vy = 0; }
+  } else if (player.mode === 'BALL') {
+    player.vy += 0.7 * player.gravityDir;
+    player.y += player.vy;
+    player.rotation += 5 * player.gravityDir;
 
-        function drawPlayer(x, y, size, rotation, mode, scale = 1.0, alpha = 1.0) {{
-            ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x + size / 2, y + size / 2); ctx.scale(scale, scale); ctx.rotate(((rotation + player.suckAngle) * Math.PI) / 180);
-            let h = size / 2;
-            if (mode === "cube") {{
-                ctx.fillStyle = "{cfg["color"]}"; ctx.fillRect(-h, -h, size, size);
-                ctx.fillStyle = "{cfg["bg_top"]}"; ctx.fillRect(-h + 3, -h + 3, size - 6, size - 6);
-                ctx.fillStyle = "{cfg["color"]}"; ctx.fillRect(-h + 6, -h + 6, size - 12, size - 12);
-                ctx.fillStyle = "#fff"; ctx.fillRect(-h + 5, -h + 6, 4, 6); ctx.fillRect(-h + 14, -h + 6, 4, 6);
-            }} else if (mode === "ship") {{
-                ctx.fillStyle = "{cfg["color"]}"; ctx.beginPath(); ctx.moveTo(-h - 6, 0); ctx.lineTo(-h + 3, -h + 2);
-                ctx.lineTo(h + 8, -h + 6); ctx.lineTo(h + 12, 0); ctx.lineTo(h + 8, h - 6); ctx.lineTo(-h + 3, h - 2);
-                ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
-            }} else if (mode === "spider") {{
-                ctx.fillStyle = "#a600ff"; ctx.fillRect(-h, -h + 4, size, size - 8);
-                ctx.fillStyle = "#fff"; ctx.fillRect(-h + 4, -h + 6, 5, 5); ctx.fillRect(h - 9, -h + 6, 5, 5);
-            }}
-            ctx.restore();
-        }}
+    if (player.y >= 340) { player.y = 340; player.vy = 0; player.isGrounded = true; }
+    if (player.y <= 30) { player.y = 30; player.vy = 0; player.isGrounded = true; }
+  } else if (player.mode === 'WAVE') {
+    player.vy = isHolding ? -8 : 8;
+    player.y += player.vy;
+    player.rotation = isHolding ? -45 : 45;
 
-        function draw() {{
-            ctx.clearRect(0, 0, canvas.width, canvas.height); const camX = player.x - 150;
-            ctx.strokeStyle = "{cfg["color"]}11"; ctx.lineWidth = 1;
-            for (let i = 0; i < canvas.width; i += 40) {{
-                let offset = (camX * 0.2) % 40; ctx.beginPath(); ctx.moveTo(i - offset, 0); ctx.lineTo(i - offset, canvas.height); ctx.stroke();
-            }}
-            for (let t of player.trail) drawPlayer(t.x - camX, t.y, t.size, t.rotation, t.mode, 1.0, t.alpha * 0.3);
+    if (player.y > 340 || player.y < 30) triggerGameOver();
+  }
 
-            ctx.fillStyle = "#05050b"; ctx.fillRect(0, 370, canvas.width, 80); ctx.fillRect(0, 0, canvas.width, 40);
-            ctx.strokeStyle = "{cfg["color"]}"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, 40); ctx.lineTo(canvas.width, 40); ctx.stroke();
+  // 화면 이동 구현 (플레이어는 고정, 장애물 이동)
+  obstacles.forEach(obs => obs.x -= player.vx);
+  portals.forEach(p => p.x -= player.vx);
 
-            for (let obj of mapObjects) {{
-                let sx = obj.x - camX;
-                if (sx >= -100 && sx <= canvas.width + 100) {{
-                    if (obj.type === "block") {{
-                        ctx.fillStyle = "#18182e"; ctx.fillRect(sx, obj.y, obj.w, obj.h);
-                        ctx.strokeStyle = "{cfg["stroke"]}"; ctx.lineWidth = 2; ctx.strokeRect(sx, obj.y, obj.w, obj.h);
-                    }} else if (obj.type === "spike") {{
-                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath(); ctx.moveTo(sx, obj.y + obj.h); ctx.lineTo(sx + obj.w / 2, obj.y); ctx.lineTo(sx + obj.w, obj.y + obj.h); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
-                    }} else if (obj.type === "spike_down") {{
-                        ctx.fillStyle = "#ff2a6d"; ctx.beginPath(); ctx.moveTo(sx, obj.y); ctx.lineTo(sx + obj.w / 2, obj.y + obj.h); ctx.lineTo(sx + obj.w, obj.y); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
-                    }} else if (obj.type.startsWith("portal_")) {{
-                        let c = "{cfg["color"]}"; 
-                        if (obj.type === "portal_ship") c = "#ff00d2"; 
-                        else if (obj.type === "portal_spider") c = "#a600ff";
-                        else if (obj.type === "portal_gravity_up") c = "#00d4ff";
-                        else if (obj.type === "portal_gravity_down") c = "#ffaa00";
-                        else if (obj.type === "portal_mini") c = "#00ff66";
-                        else if (obj.type === "portal_normal") c = "#ff3300";
+  // 포탈 충돌 검사
+  portals.forEach(p => {
+    if (Math.abs(p.x - player.x) < 20) {
+      if (player.mode !== p.targetMode) {
+        player.mode = p.targetMode;
+        createExplosion(player.x, player.y, '#00ffff');
+      }
+    }
+  });
 
-                        ctx.strokeStyle = c; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(sx + obj.w / 2, obj.y + obj.h / 2, obj.w / 2, obj.h / 2 + Math.sin(portalAnim) * 3, 0, 0, Math.PI * 2); ctx.stroke();
-                        ctx.fillStyle = c; ctx.fillRect(sx + obj.w / 2 - 2, obj.y, 4, obj.h);
-                    }}
-                }}
-            }}
+  // 장애물 충돌 검사
+  obstacles.forEach(obs => {
+    if (
+      player.x + player.size/2 > obs.x &&
+      player.x - player.size/2 < obs.x + obs.w &&
+      player.y + player.size/2 > obs.y &&
+      player.y - player.size/2 < obs.y + obs.h
+    ) {
+      triggerGameOver();
+    }
+  });
 
-            for (let p of particles) {{ ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.fillRect(p.x - camX, p.y, p.size, p.size); ctx.restore(); }}
-            let finishSx = finishX - camX;
-            if (finishSx <= canvas.width + 100) {{
-                let g = ctx.createLinearGradient(finishSx - 40, 0, finishSx + 40, 0);
-                g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.5, "rgba(255,255,255,0.95)"); g.addColorStop(1, "rgba(255,255,255,0)");
-                ctx.fillStyle = g; ctx.fillRect(finishSx - 40, 0, 80, canvas.height);
-            }}
+  // 파티클 업데이트
+  particles.forEach((p, index) => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.03;
+    if (p.life <= 0) particles.splice(index, 1);
+  });
 
-            if (!player.isDead && player.suckScale > 0) drawPlayer(player.x - camX, player.y, player.size, player.rotation, player.mode, player.suckScale);
-            let progress = Math.min(100, Math.floor((player.x / finishX) * 100));
-            ctx.fillStyle = "#fff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "left"; ctx.fillText(progress + "%", 20, 65);
+  // 카메라 셰이크 감쇄
+  if (cameraShake > 0) cameraShake *= 0.9;
+}
 
-            if (player.isDead) {{
-                ctx.fillStyle = "#ff2a6d"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥 GAME OVER (" + player.deathPercent + "%)", canvas.width / 2, 210);
-                ctx.font = "15px sans-serif"; ctx.fillStyle = "#bbbbdd"; ctx.fillText("화면 클릭 또는 'R' 키를 눌러 재시작", canvas.width / 2, 250);
-            }} else if (player.isWin) {{
-                ctx.fillStyle = "#ffea00"; ctx.font = "bold 32px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🏆 STAGE CLEAR!!", canvas.width / 2, 220);
-            }}
-        }}
+function triggerGameOver() {
+  cameraShake = 15;
+  createExplosion(player.x, player.y, '#ff0055');
+  gameState = 'GAMEOVER';
+  setTimeout(() => {
+    lobbyOverlay.style.display = 'flex';
+  }, 1000);
+}
 
-        function gameLoop() {{ update(); draw(); requestAnimationFrame(gameLoop); }}
-        gameLoop();
-    </script>
+// 렌더링 로직
+function draw() {
+  ctx.save();
+  
+  // 카메라 셰이크 적용
+  if (cameraShake > 0.5) {
+    ctx.translate((Math.random() - 0.5) * cameraShake, (Math.random() - 0.5) * cameraShake);
+  }
+
+  // 배경 그리기 (네온 그라데이션)
+  let bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  bgGrad.addColorStop(0, '#0f0c20');
+  bgGrad.addColorStop(1, '#06040a');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 천장 및 바닥 선
+  ctx.strokeStyle = '#00ffff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370);
+  ctx.moveTo(0, 30); ctx.lineTo(canvas.width, 30);
+  ctx.stroke();
+
+  // 잔상(Trail) 렌더링
+  player.trail.forEach((t, i) => {
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.rotate((t.rotation * Math.PI) / 180);
+    ctx.fillStyle = `rgba(0, 255, 255, ${i * 0.05})`;
+    ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
+    ctx.restore();
+  });
+
+  // 플레이어 렌더링
+  if (gameState === 'PLAYING') {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate((player.rotation * Math.PI) / 180);
+
+    ctx.fillStyle = player.mode === 'WAVE' ? '#ffff00' : '#00ffff';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = ctx.fillStyle;
+
+    if (player.mode === 'CUBE' || player.mode === 'BALL') {
+      ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
+      ctx.strokeStyle = '#fff';
+      ctx.strokeRect(-player.size/4, -player.size/4, player.size/2, player.size/2);
+    } else if (player.mode === 'SHIP' || player.mode === 'WAVE') {
+      ctx.beginPath();
+      ctx.moveTo(player.size/2, 0);
+      ctx.lineTo(-player.size/2, -player.size/2);
+      ctx.lineTo(-player.size/2, player.size/2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 장애물 렌더링
+  obstacles.forEach(obs => {
+    ctx.fillStyle = '#ff0055';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#ff0055';
+
+    if (obs.type === 'SPIKE') {
+      ctx.beginPath();
+      ctx.moveTo(obs.x, obs.y + obs.h);
+      ctx.lineTo(obs.x + obs.w / 2, obs.y);
+      ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
+      ctx.fill();
+    } else {
+      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+    }
+  });
+
+  // 포탈 렌더링
+  portals.forEach(p => {
+    ctx.fillStyle = '#a000ff';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#a000ff';
+    ctx.fillRect(p.x, 30, 10, 340);
+  });
+
+  // 파티클 렌더링
+  particles.forEach(p => {
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  });
+  ctx.globalAlpha = 1.0;
+
+  ctx.restore();
+}
+
+// Main Game Loop
+function gameLoop() {
+  update();
+  draw();
+  if (gameState === 'PLAYING' || particles.length > 0) {
+    requestAnimationFrame(gameLoop);
+  }
+}
+</script>
 </body>
 </html>
-"""
-
-components.html(game_html, height=530)
